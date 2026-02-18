@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>고라니 런 - GORANI RUN</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@400;700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{overflow:hidden;background:#0a0a0a;touch-action:none;-webkit-user-select:none;user-select:none;}
+  canvas{display:block;width:100vw;height:100vh;}
+  #score-display{position:fixed;top:20px;left:50%;transform:translateX(-50%);color:#fff;font-family:'Orbitron',sans-serif;font-size:18px;font-weight:700;z-index:20;text-shadow:0 0 20px rgba(255,200,50,0.8),0 0 40px rgba(255,150,0,0.4);letter-spacing:3px;}
+  #distance-display{position:fixed;bottom:30px;right:20px;color:#88ff88;font-family:'Orbitron',sans-serif;font-size:13px;z-index:20;text-shadow:0 0 15px rgba(100,255,100,0.6);letter-spacing:2px;}
+  #combo-display{position:fixed;top:55px;left:50%;transform:translateX(-50%);color:#ffdd44;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;z-index:20;text-shadow:0 0 15px rgba(255,220,50,0.6);opacity:0;transition:opacity 0.3s;}
+  #lives-display{position:fixed;top:20px;left:20px;z-index:20;display:flex;gap:4px;align-items:center;}
+  .life-icon{transition:all 0.3s;width:28px;height:28px;}.life-icon.lost{opacity:0.15;filter:grayscale(1);}
+  #flash-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,60,60,0.35);z-index:15;opacity:0;pointer-events:none;transition:opacity 0.15s;}
+  #warning-text{position:fixed;top:45%;left:50%;transform:translate(-50%,-50%);font-family:'Noto Sans KR',sans-serif;font-size:20px;font-weight:900;color:#ff4444;text-shadow:0 0 30px rgba(255,50,50,0.8);z-index:25;opacity:0;pointer-events:none;transition:opacity 0.3s;}
+  #start-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(180deg,#0d1a0d 0%,#1a2a10 40%,#0a1508 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;pointer-events:all;}
+  .gorani-emoji{margin-bottom:15px;animation:bounce 1.5s ease-in-out infinite;width:120px;height:120px;}
+  @keyframes bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
+  #start-screen h1{font-family:'Noto Sans KR',sans-serif;font-size:36px;font-weight:900;color:#fff;text-shadow:0 0 30px rgba(255,200,50,0.7),0 0 60px rgba(255,150,0,0.3);letter-spacing:4px;margin-bottom:5px;}
+  #start-screen .subtitle{font-family:'Orbitron',sans-serif;font-size:11px;color:rgba(255,255,255,0.35);letter-spacing:5px;margin-bottom:8px;}
+  .flavor-text{font-family:'Noto Sans KR',sans-serif;font-size:13px;color:rgba(255,255,255,0.45);margin-bottom:35px;}
+  .best-score-display{font-family:'Orbitron',sans-serif;font-size:13px;color:rgba(255,200,0,0.65);letter-spacing:3px;margin-bottom:35px;}
+  #start-btn{font-family:'Noto Sans KR',sans-serif;font-size:17px;font-weight:900;color:#fff;background:linear-gradient(135deg,rgba(80,180,50,0.25),rgba(50,130,30,0.35));border:2px solid rgba(100,200,60,0.5);padding:18px 55px;border-radius:50px;cursor:pointer;letter-spacing:5px;pointer-events:all;-webkit-tap-highlight-color:transparent;}
+  #start-btn:active{background:linear-gradient(135deg,rgba(80,180,50,0.45),rgba(50,130,30,0.55));transform:scale(0.96);}
+  .gyro-hint{font-family:'Noto Sans KR',sans-serif;font-size:11px;color:rgba(255,255,255,0.25);margin-top:25px;}
+  #game-over-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,5,5,0.92);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;pointer-events:all;backdrop-filter:blur(8px);}
+  #game-over-screen .dead-gorani{margin-bottom:15px;width:96px;height:96px;}
+  #game-over-screen h2{font-family:'Noto Sans KR',sans-serif;font-size:24px;font-weight:900;color:#ff5555;text-shadow:0 0 25px rgba(255,50,50,0.5);letter-spacing:4px;margin-bottom:25px;}
+  #final-score{font-family:'Orbitron',sans-serif;font-size:44px;font-weight:900;color:#fff;margin-bottom:8px;}
+  #final-distance{font-family:'Orbitron',sans-serif;font-size:14px;color:rgba(255,255,255,0.4);letter-spacing:2px;margin-bottom:25px;}
+  #new-best{font-family:'Noto Sans KR',sans-serif;font-size:15px;color:#ffcc00;letter-spacing:3px;margin-bottom:25px;display:none;animation:pulse 0.8s ease-in-out infinite;}
+  #new-best canvas{width:24px;height:24px;vertical-align:middle;margin-right:4px;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+  #restart-btn{font-family:'Noto Sans KR',sans-serif;font-size:15px;font-weight:900;color:#fff;background:linear-gradient(135deg,rgba(255,80,50,0.2),rgba(255,50,30,0.3));border:2px solid rgba(255,80,50,0.5);padding:16px 45px;border-radius:50px;cursor:pointer;letter-spacing:4px;pointer-events:all;-webkit-tap-highlight-color:transparent;}
+  #ad-space{position:fixed;bottom:0;left:0;width:100%;height:50px;background:rgba(0,0,0,0.85);border-top:1px solid rgba(255,255,255,0.08);display:none;align-items:center;justify-content:center;z-index:50;font-family:'Orbitron',sans-serif;font-size:9px;color:rgba(255,255,255,0.2);letter-spacing:3px;}
+  #sound-btn{position:fixed;top:20px;right:20px;z-index:30;width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,0.25);background:rgba(0,0,0,0.4);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;pointer-events:all;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(4px);transition:all 0.2s;padding:0;}
+  #sound-btn canvas{width:22px;height:22px;}
+  #sound-btn:active{transform:scale(0.9);}
+  #sound-btn.muted{opacity:0.4;}
+</style>
+</head>
+<body>
+<div id="score-display">0</div>
+<div id="combo-display">아슬아슬! x1</div>
+<div id="distance-display">0 m</div>
+<div id="lives-display">
+  <canvas class="life-icon" id="life1" width="88" height="88"></canvas>
+  <canvas class="life-icon" id="life2" width="88" height="88"></canvas>
+  <canvas class="life-icon" id="life3" width="88" height="88"></canvas>
+</div>
+<div id="flash-overlay"></div>
+<div id="warning-text">위험해!</div>
+<button id="sound-btn" aria-label="Sound"><canvas id="sound-canvas" width="36" height="36"></canvas></button>
+<div id="start-screen">
+  <canvas class="gorani-emoji" id="title-gorani" width="256" height="256"></canvas>
+  <h1>고라니 런</h1>
+  <div class="subtitle">GORANI RUN</div>
+  <div class="flavor-text">도로를 건너는 고라니를 도와주세요!</div>
+  <div class="best-score-display" id="best-score-text">BEST: 0</div>
+  <button id="start-btn">달리기</button>
+  <div class="gyro-hint">핸드폰을 기울여서 조작하세요</div>
+</div>
+<div id="game-over-screen">
+  <canvas class="dead-gorani" id="dead-gorani-canvas" width="200" height="200"></canvas>
+  <h2>로드킬 당했다!</h2>
+  <div id="final-score">0</div>
+  <div id="final-distance">0 m 생존</div>
+  <div id="new-best"><canvas id="trophy-canvas" width="32" height="32" style="vertical-align:middle;margin-right:4px"></canvas>신기록!</div>
+  <button id="restart-btn">다시 달리기</button>
+</div>
+<div id="ad-space">— AD SPACE —</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/*
+ * 고라니 런 - GORANI RUN v4
+ *
+ * 화면 구성:
+ *   카메라: 위에서 비스듬히 내려다봄 (전전 버전과 동일)
+ *   고라니: 화면 아래쪽에 고정, 얼굴이 카메라를 향함 (앞모습 보임)
+ *   차: 화면 위(멀리)에서 스폰 → 고라니를 향해 아래로 쓩쓩
+ *   도로: 천천히 위→아래로 스크롤 (고라니가 달리는 느낌)
+ *
+ * 좌표:
+ *   카메라는 +Z쪽, 위에서 -Z 방향을 내려다봄
+ *   고라니는 +Z 근처(화면 아래), 얼굴은 +Z(카메라 쪽)
+ *   차는 -Z(멀리=화면 위)에서 스폰, +Z(카메라=화면 아래)로 이동
+ *   도로도 +Z로 천천히 스크롤
+ */
+
+var scene, camera, renderer;
+var gorani;
+var obstacles = [];
+var roadLines = [];
+var roadPosts = [];
+var decorations = [];
+var particles = [];
+var coins = [];
+var gameState = 'menu';
+var score = 0, bestScore = 0;
+var speed = 0.25, maxSpeed = 0.65;
+var playerX = 0, targetX = 0;
+var lives = 3, combo = 0, comboTimer = 0;
+var invincible = false, invincibleTimer = 0;
+var frameCount = 0;
+var gyroAvailable = false, gyroGamma = 0;
+var difficultyTimer = 0, obstacleFrequency = 60;
+var distance = 0, runCycle = 0, warningTimer = 0;
+
+var C = {
+  road: 0x2a2a38, roadLine: 0xeecc44, grass1: 0x2d7a3e,
+  sky: 0x0c1520, goraniBody: 0xc4956a, goraniLight: 0xd4a878,
+  goraniBelly: 0xe0c8a8, goraniFang: 0xf0f0f0,
+  obstacle: [0xcc2233, 0x2244cc, 0xeeeeee, 0x333333, 0xdd8800, 0x44aa44],
+  headlight: 0xffffaa, taillight: 0xff2200,
+  tree: 0x1a6632, trunk: 0x5c3a1e, mountain: 0x2a3a4a,
+  coin: 0xffdd00, bush: 0x2a7030
+};
+
+// ─── SOUND SYSTEM (Web Audio API) ───
+var audioCtx = null;
+var soundEnabled = true;
+var bgmGain = null;
+var bgmStarted = false;
+
+function initAudio() {
+  if (audioCtx) {
+    // 이미 있으면 resume만 (iOS 필수)
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return;
+  }
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // iOS에서 suspended 상태일 수 있으므로 즉시 resume
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    bgmGain = audioCtx.createGain();
+    bgmGain.gain.value = 0.25;
+    bgmGain.connect(audioCtx.destination);
+  } catch(e) { console.log('Audio not supported'); }
+}
+
+function playTone(freq, duration, type, vol, detune) {
+  if (!audioCtx || !soundEnabled) return;
+  try {
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.value = freq;
+    if (detune) osc.detune.value = detune;
+    gain.gain.value = vol || 0.1;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {}
+}
+
+function playNoise(duration, vol) {
+  if (!audioCtx || !soundEnabled) return;
+  try {
+    var bufSize = audioCtx.sampleRate * duration;
+    var buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+    var src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    var gain = audioCtx.createGain();
+    gain.gain.value = vol || 0.08;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    var filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 800;
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+    src.start();
+  } catch(e) {}
+}
+
+// 배경음악 - 간단한 루프 멜로디
+var bgmInterval = null;
+function startBGM() {
+  if (bgmStarted || !audioCtx || !soundEnabled) return;
+  bgmStarted = true;
+  var notes = [262, 294, 330, 349, 392, 349, 330, 294]; // C D E F G F E D
+  var bassNotes = [131, 131, 165, 165, 196, 196, 165, 165];
+  var step = 0;
+  bgmInterval = setInterval(function() {
+    if (!soundEnabled || gameState !== 'playing') return;
+    try {
+      // Melody
+      var osc = audioCtx.createOscillator();
+      var g = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = notes[step % notes.length];
+      g.gain.value = 0.12;
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+      osc.connect(g); g.connect(bgmGain);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+
+      // Bass
+      var osc2 = audioCtx.createOscillator();
+      var g2 = audioCtx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.value = bassNotes[step % bassNotes.length];
+      g2.gain.value = 0.15;
+      g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+      osc2.connect(g2); g2.connect(bgmGain);
+      osc2.start(); osc2.stop(audioCtx.currentTime + 0.25);
+
+      step++;
+    } catch(e) {}
+  }, 250);
+}
+
+function stopBGM() {
+  bgmStarted = false;
+  if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
+}
+
+// 효과음들
+function sfxCoin() {
+  playTone(880, 0.12, 'square', 0.15);
+  setTimeout(function(){ playTone(1100, 0.15, 'square', 0.12); }, 60);
+}
+
+function sfxCrash() {
+  playNoise(0.3, 0.25);
+  playTone(120, 0.3, 'sawtooth', 0.2);
+}
+
+function sfxNearMiss() {
+  playTone(600, 0.1, 'sine', 0.12);
+  setTimeout(function(){ playTone(800, 0.12, 'sine', 0.1); }, 50);
+}
+
+function sfxGameOver() {
+  playTone(400, 0.2, 'sawtooth', 0.18);
+  setTimeout(function(){ playTone(300, 0.25, 'sawtooth', 0.15); }, 150);
+  setTimeout(function(){ playTone(200, 0.4, 'sawtooth', 0.18); }, 300);
+}
+
+function sfxStart() {
+  playTone(440, 0.12, 'square', 0.12);
+  setTimeout(function(){ playTone(550, 0.12, 'square', 0.12); }, 80);
+  setTimeout(function(){ playTone(660, 0.15, 'square', 0.14); }, 160);
+}
+
+function sfxCarPass() {
+  playNoise(0.15, 0.06);
+}
+
+function toggleSound() {
+  initAudio();
+  soundEnabled = !soundEnabled;
+  document.getElementById('sound-btn').className = soundEnabled ? '' : 'muted';
+  drawSoundIcon();
+  if (!soundEnabled) { stopBGM(); }
+  else if (gameState === 'playing') { startBGM(); }
+}
+
+// ─── INIT ───
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(C.sky);
+  scene.fog = new THREE.Fog(C.sky, 25, 75);
+
+  // 카메라: 위에서 비스듬히 도로를 내려다봄
+  camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 150);
+  camera.position.set(0, 5.5, 9);
+  camera.lookAt(0, 0.5, -8);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  document.body.prepend(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0x556688, 0.5));
+  var ml = new THREE.DirectionalLight(0xaabbdd, 0.6); ml.position.set(5, 15, -5); scene.add(ml);
+  var wl = new THREE.DirectionalLight(0xffddaa, 0.25); wl.position.set(-3, 5, 8); scene.add(wl);
+  scene.add(new THREE.HemisphereLight(0x224466, 0x113322, 0.3));
+
+  createGorani();
+  createRoad();
+  createEnvironment();
+  createStars();
+  createMoonObj();
+  setupGyroscope();
+  setupTouchControls();
+
+  window.addEventListener('resize', onResize);
+  document.getElementById('start-btn').addEventListener('click', startGame);
+  document.getElementById('restart-btn').addEventListener('click', startGame);
+  document.getElementById('sound-btn').addEventListener('click', toggleSound);
+
+  try { bestScore = parseInt(localStorage.getItem('goranirun_best') || '0'); } catch(e) { bestScore = 0; }
+  document.getElementById('best-score-text').textContent = 'BEST: ' + bestScore;
+  animate();
+}
+
+// ─── GORANI (화면 아래쪽, 얼굴이 카메라를 향함) ───
+function createGorani() {
+  gorani = new THREE.Group();
+  var bm = new THREE.MeshLambertMaterial({ color: C.goraniBody });
+
+  var body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.75, 1.6), bm);
+  body.position.set(0, 1.1, 0); gorani.add(body);
+  var belly = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.25, 1.3), new THREE.MeshLambertMaterial({ color: C.goraniBelly }));
+  belly.position.set(0, 0.78, 0); gorani.add(belly);
+
+  var hg = new THREE.Group(); hg.position.set(0, 1.65, -0.7);
+  hg.add(new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.6, 0.7), bm));
+  var sn = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.35), new THREE.MeshLambertMaterial({ color: C.goraniLight }));
+  sn.position.set(0, -0.1, -0.4); hg.add(sn);
+  var ns = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.05), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+  ns.position.set(0, 0, -0.58); hg.add(ns);
+
+  [-0.2, 0.2].forEach(function(x) {
+    var ew = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.2, 0.04), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    ew.position.set(x, 0.1, -0.33); hg.add(ew);
+    var ey = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.05), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    ey.position.set(x, 0.08, -0.35); hg.add(ey);
+    var sh = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    sh.position.set(x + 0.03, 0.13, -0.37); hg.add(sh);
+  });
+  [[-0.22, 0.42, 0, -0.2], [0.22, 0.42, 0, 0.2]].forEach(function(d) {
+    var ear = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.35, 4), bm);
+    ear.position.set(d[0], d[1], d[2]); ear.rotation.z = d[3]; hg.add(ear);
+    var ei = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 4), new THREE.MeshLambertMaterial({ color: 0xdda488 }));
+    ei.position.set(d[0], d[1] - 0.02, d[2] - 0.02); ei.rotation.z = d[3]; hg.add(ei);
+  });
+  [-0.1, 0.1].forEach(function(x) {
+    var f = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.2, 4), new THREE.MeshBasicMaterial({ color: C.goraniFang }));
+    f.position.set(x, -0.25, -0.4); f.rotation.x = Math.PI; hg.add(f);
+  });
+  gorani.add(hg); gorani.userData.head = hg;
+
+  [{ x: -0.32, z: -0.5, n: 'legFL' }, { x: 0.32, z: -0.5, n: 'legFR' },
+   { x: -0.32, z: 0.5, n: 'legBL' }, { x: 0.32, z: 0.5, n: 'legBR' }].forEach(function(d) {
+    var g = new THREE.Group(); g.position.set(d.x, 0.65, d.z);
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.65, 0.22), bm));
+    var hoof = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.24), new THREE.MeshLambertMaterial({ color: 0x3a2a1a }));
+    hoof.position.y = -0.38; g.add(hoof);
+    gorani.add(g); gorani.userData[d.n] = g;
+  });
+  var tail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.25), new THREE.MeshLambertMaterial({ color: C.goraniBelly }));
+  tail.position.set(0, 1.35, 0.9); gorani.add(tail); gorani.userData.tail = tail;
+
+  gorani.scale.set(0.9, 0.9, 0.9);
+  gorani.position.set(0, 0, 3);
+  // ★ 얼굴이 카메라(+Z)를 향하도록 180도 회전
+  gorani.rotation.y = Math.PI;
+  scene.add(gorani);
+}
+
+function animateGorani() {
+  if (gameState !== 'playing') {
+    runCycle += 0.02;
+    if (gorani.userData.head) gorani.userData.head.rotation.x = Math.sin(runCycle * 0.7) * 0.05;
+    if (gorani.userData.tail) gorani.userData.tail.rotation.x = Math.sin(runCycle * 2) * 0.15;
+    return;
+  }
+  runCycle += speed * 2.5;
+  gorani.userData.legFL.rotation.x = Math.sin(runCycle) * 0.6;
+  gorani.userData.legFR.rotation.x = Math.sin(runCycle + Math.PI) * 0.6;
+  gorani.userData.legBL.rotation.x = Math.sin(runCycle + Math.PI * 0.5) * 0.5;
+  gorani.userData.legBR.rotation.x = Math.sin(runCycle + Math.PI * 1.5) * 0.5;
+  gorani.position.y = Math.abs(Math.sin(runCycle * 1.2)) * 0.15;
+  gorani.userData.head.rotation.x = Math.sin(runCycle * 1.2) * 0.06;
+  gorani.userData.head.position.y = 1.65 + Math.sin(runCycle * 1.2) * 0.03;
+  gorani.userData.tail.rotation.x = Math.sin(runCycle * 3) * 0.2;
+  gorani.userData.tail.rotation.y = Math.sin(runCycle * 2) * 0.15;
+  var tilt = (targetX - playerX) * 0.15;
+  gorani.rotation.z += (tilt - gorani.rotation.z) * 0.1;
+  if (invincible) gorani.visible = Math.floor(invincibleTimer / 3) % 2 === 0;
+}
+
+// ─── ROAD (도로 라인이 +Z로 스크롤 = 화면에서 위→아래) ───
+function createRoad() {
+  var rs = new THREE.Mesh(new THREE.PlaneGeometry(11, 400), new THREE.MeshLambertMaterial({ color: C.road }));
+  rs.rotation.x = -Math.PI / 2; rs.position.set(0, -0.01, -100); scene.add(rs);
+
+  var SP = 5, CT = 50, TOTAL = CT * SP;
+  for (var i = 0; i < CT; i++) {
+    var d = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 2.5), new THREE.MeshBasicMaterial({ color: C.roadLine }));
+    d.rotation.x = -Math.PI / 2; d.position.set(0, 0.02, -i * SP);
+    d.userData.totalLen = TOTAL; scene.add(d); roadLines.push(d);
+  }
+  [-3.5, 3.5].forEach(function(x) {
+    for (var i = 0; i < CT; i++) {
+      var dd = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 2), new THREE.MeshBasicMaterial({ color: 0x555566 }));
+      dd.rotation.x = -Math.PI / 2; dd.position.set(x, 0.02, -i * SP + 2.5);
+      dd.userData.totalLen = TOTAL; scene.add(dd); roadLines.push(dd);
+    }
+  });
+  var ESP = 3.5, ECT = 70, ETOTAL = ECT * ESP;
+  [-5.5, 5.5].forEach(function(x) {
+    for (var i = 0; i < ECT; i++) {
+      var e = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 2.8), new THREE.MeshBasicMaterial({ color: 0xcccccc }));
+      e.rotation.x = -Math.PI / 2; e.position.set(x, 0.02, -i * ESP);
+      e.userData.totalLen = ETOTAL; scene.add(e); roadLines.push(e);
+    }
+  });
+  var PSP = 8, PCT = 35, PTOTAL = PCT * PSP;
+  [-6.3, 6.3].forEach(function(x) {
+    for (var i = 0; i < PCT; i++) {
+      var p = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 0.08), new THREE.MeshLambertMaterial({ color: 0x888888 }));
+      p.position.set(x, 0.3, -i * PSP); p.userData.totalLen = PTOTAL; scene.add(p); roadPosts.push(p);
+      var r = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.09), new THREE.MeshBasicMaterial({ color: x < 0 ? 0xff4400 : 0xffaa00 }));
+      r.position.set(x, 0.5, -i * PSP); r.userData.totalLen = PTOTAL; scene.add(r); roadPosts.push(r);
+    }
+  });
+  var gr = new THREE.Mesh(new THREE.PlaneGeometry(80, 400), new THREE.MeshLambertMaterial({ color: C.grass1 }));
+  gr.rotation.x = -Math.PI / 2; gr.position.y = -0.05; scene.add(gr);
+}
+
+function scrollRoad(spd) {
+  for (var i = 0; i < roadLines.length; i++) {
+    roadLines[i].position.z -= spd;
+    if (roadLines[i].position.z < -roadLines[i].userData.totalLen + 15) roadLines[i].position.z += roadLines[i].userData.totalLen;
+  }
+  for (var i = 0; i < roadPosts.length; i++) {
+    roadPosts[i].position.z -= spd;
+    if (roadPosts[i].position.z < -roadPosts[i].userData.totalLen + 15) roadPosts[i].position.z += roadPosts[i].userData.totalLen;
+  }
+}
+
+// ─── ENVIRONMENT ───
+function createEnvironment() {
+  var i, s, t;
+  for (i = 0; i < 60; i++) { t = createTree(); s = Math.random() > 0.5 ? 1 : -1; t.position.set(s * (7 + Math.random() * 18), 0, -i * 5 - 10 + Math.random() * 3); scene.add(t); decorations.push(t); }
+  for (i = 0; i < 35; i++) { t = createBush(); s = Math.random() > 0.5 ? 1 : -1; t.position.set(s * (6.2 + Math.random() * 3), 0, -i * 7 + Math.random() * 4 - 20); scene.add(t); decorations.push(t); }
+  for (i = 0; i < 12; i++) { t = createMtn(); s = Math.random() > 0.5 ? 1 : -1; t.position.set(s * (22 + Math.random() * 20), 0, -i * 14 - 20 + Math.random() * 10); scene.add(t); decorations.push(t); }
+  for (i = 0; i < 6; i++) { t = createSign(); s = Math.random() > 0.5 ? 1 : -1; t.position.set(s * 6.5, 0, -i * 40 - 20); scene.add(t); decorations.push(t); }
+}
+function createTree() {
+  var g = new THREE.Group();
+  var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1.5, 5), new THREE.MeshLambertMaterial({ color: C.trunk }));
+  trunk.position.y = 0.75; g.add(trunk);
+  var y = 1.4;
+  [[1.3,1.6,6],[1.0,1.3,6],[0.6,1.0,5]].forEach(function(l) {
+    var leaf = new THREE.Mesh(new THREE.ConeGeometry(l[0], l[1], l[2]), new THREE.MeshLambertMaterial({ color: C.tree + Math.floor(Math.random()*0x0a0a0a) }));
+    leaf.position.y = y; leaf.rotation.y = Math.random() * Math.PI; g.add(leaf); y += l[1] * 0.55;
+  });
+  var sc = 0.5 + Math.random() * 0.9; g.scale.set(sc, sc, sc); return g;
+}
+function createBush() {
+  var g = new THREE.Group();
+  for (var i = 0; i < 3; i++) { var s = new THREE.Mesh(new THREE.SphereGeometry(0.4+Math.random()*0.3, 5, 4), new THREE.MeshLambertMaterial({ color: C.bush+Math.floor(Math.random()*0x050a05) })); s.position.set((Math.random()-0.5)*0.5, 0.3, (Math.random()-0.5)*0.4); s.scale.y = 0.7; g.add(s); }
+  return g;
+}
+function createMtn() {
+  var m = new THREE.Mesh(new THREE.ConeGeometry(7+Math.random()*7, 14+Math.random()*10, 5), new THREE.MeshLambertMaterial({ color: C.mountain+Math.floor(Math.random()*0x0a0a10) })); m.position.y = 4; return m;
+}
+function createSign() {
+  var g = new THREE.Group();
+  g.add(function(){ var p = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.5,4), new THREE.MeshLambertMaterial({ color: 0x888888 })); p.position.y = 1.25; return p; }());
+  g.add(function(){ var s = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.8,0.06), new THREE.MeshBasicMaterial({ color: 0xffcc00 })); s.position.set(0,2.5,0); s.rotation.z = Math.PI/4; return s; }());
+  g.add(function(){ var d = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,0.07), new THREE.MeshBasicMaterial({ color: 0x222222 })); d.position.set(0,2.5,0.02); return d; }());
+  return g;
+}
+function createStars() {
+  var geo = new THREE.BufferGeometry(); var pos = [];
+  for (var i = 0; i < 250; i++) pos.push((Math.random()-0.5)*140, 18+Math.random()*45, -Math.random()*120-10);
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.65 })));
+}
+function createMoonObj() {
+  var m = new THREE.Mesh(new THREE.SphereGeometry(3,8,6), new THREE.MeshBasicMaterial({ color: 0xeeeedd }));
+  m.position.set(20, 35, -70); scene.add(m);
+  var gl = new THREE.Mesh(new THREE.SphereGeometry(4.5,8,6), new THREE.MeshBasicMaterial({ color: 0xddddc8, transparent: true, opacity: 0.12 }));
+  gl.position.set(20, 35, -70); scene.add(gl);
+}
+
+// ─── VEHICLES ───
+// 차는 멀리(-Z = 화면 위)에서 스폰, +Z(화면 아래)로 내려옴
+// 차 앞면(헤드라이트)이 +Z를 향해야 함 = 아래로 달려오는 모양
+function createVehicle() {
+  var group = new THREE.Group();
+  var type = Math.random();
+  var color = C.obstacle[Math.floor(Math.random() * C.obstacle.length)];
+  var vw = 1.6, vl = 3.2;
+
+  if (type < 0.6) {
+    // CAR - 앞(+Z) = 헤드라이트 쪽
+    var cbody = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.55, 3.0), new THREE.MeshLambertMaterial({ color: color }));
+    cbody.position.y = 0.5; group.add(cbody);
+    var ccab = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.4, 1.2), new THREE.MeshLambertMaterial({ color: new THREE.Color(color).multiplyScalar(0.75) }));
+    ccab.position.set(0, 0.95, -0.2); group.add(ccab);
+    var cws = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.32, 0.05), new THREE.MeshLambertMaterial({ color: 0x88aacc, transparent: true, opacity: 0.5 }));
+    cws.position.set(0, 0.95, 0.42); cws.rotation.x = 0.2; group.add(cws);
+    var crw = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.28, 0.05), new THREE.MeshLambertMaterial({ color: 0x88aacc, transparent: true, opacity: 0.4 }));
+    crw.position.set(0, 0.92, -0.82); crw.rotation.x = -0.2; group.add(crw);
+    var hood = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 0.8), new THREE.MeshLambertMaterial({ color: new THREE.Color(color).multiplyScalar(0.9) }));
+    hood.position.set(0, 0.68, 1.0); group.add(hood);
+    vw = 1.6; vl = 3.2;
+  } else if (type < 0.85) {
+    // TRUCK
+    var tcargo = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.2, 3.0), new THREE.MeshLambertMaterial({ color: color }));
+    tcargo.position.set(0, 0.9, -0.5); group.add(tcargo);
+    var tcab = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.9, 1.6), new THREE.MeshLambertMaterial({ color: new THREE.Color(color).multiplyScalar(0.7) }));
+    tcab.position.set(0, 0.75, 1.5); group.add(tcab);
+    var tws = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.65, 0.05), new THREE.MeshLambertMaterial({ color: 0x88aacc, transparent: true, opacity: 0.45 }));
+    tws.position.set(0, 0.9, 2.32); group.add(tws);
+    vw = 1.8; vl = 4.5;
+  } else {
+    // MOTORCYCLE
+    var mbody = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 1.8), new THREE.MeshLambertMaterial({ color: color }));
+    mbody.position.y = 0.5; group.add(mbody);
+    var mrider = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.5), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+    mrider.position.set(0, 1.0, -0.2); group.add(mrider);
+    var mhelmet = new THREE.Mesh(new THREE.SphereGeometry(0.18, 5, 4), new THREE.MeshLambertMaterial({ color: 0x111111 }));
+    mhelmet.position.set(0, 1.45, -0.2); group.add(mhelmet);
+    vw = 0.8; vl = 2.0;
+  }
+  group.userData.width = vw;
+  group.userData.length = vl;
+
+  // Wheels
+  var wg = new THREE.CylinderGeometry(0.22,0.22,0.12,6), wm = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  var hw = vw*0.45, hl = vl*0.28;
+  [[-hw,0.22,hl],[hw,0.22,hl],[-hw,0.22,-hl],[hw,0.22,-hl]].forEach(function(p) {
+    var w = new THREE.Mesh(wg, wm); w.position.set(p[0],p[1],p[2]); w.rotation.z = Math.PI/2; group.add(w);
+  });
+
+  // 헤드라이트 (+Z = 앞 = 아래 방향)
+  var hlGeo = new THREE.BoxGeometry(0.22, 0.16, 0.06);
+  var hlMat = new THREE.MeshBasicMaterial({ color: C.headlight });
+  var tlMat = new THREE.MeshBasicMaterial({ color: C.taillight });
+  var fz = vl * 0.5, bz = -vl * 0.5, hx = vw * 0.3;
+
+  [[-hx, 0.48, fz], [hx, 0.48, fz]].forEach(function(p) {
+    var h = new THREE.Mesh(hlGeo, hlMat); h.position.set(p[0],p[1],p[2]); group.add(h);
+  });
+  [[-hx, 0.48, bz], [hx, 0.48, bz]].forEach(function(p) {
+    var t = new THREE.Mesh(hlGeo, tlMat); t.position.set(p[0],p[1],p[2]); group.add(t);
+  });
+
+  // 헤드라이트 빔 (+Z 방향으로)
+  var beamGeo = new THREE.ConeGeometry(0.9, 6, 6);
+  var beamMat = new THREE.MeshBasicMaterial({ color: 0xffffdd, transparent: true, opacity: 0.04 });
+  [[-hx, 0.48, fz+3], [hx, 0.48, fz+3]].forEach(function(p) {
+    var b = new THREE.Mesh(beamGeo, beamMat); b.position.set(p[0],p[1],p[2]);
+    b.rotation.x = -Math.PI/2; group.add(b);
+  });
+
+  // 차는 이미 +Z를 향하므로 회전 필요 없음
+  var lanes = [-3.8, -1.8, 0, 1.8, 3.8];
+  var lane = lanes[Math.floor(Math.random() * lanes.length)];
+  // ★ 멀리(-Z = 화면 위)에서 스폰
+  group.position.set(lane, 0, -80 - Math.random() * 30);
+  group.userData.lane = lane;
+  // ★ 차 자체 속도 (도로 스크롤보다 훨씬 빠름)
+  group.userData.carSpeed = 0.25 + Math.random() * 0.2;
+  group.userData.nearMissed = false;
+  return group;
+}
+
+// ─── COIN ───
+function createCoin() {
+  var g = new THREE.Group();
+  var c = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.08,8), new THREE.MeshBasicMaterial({ color: C.coin }));
+  c.rotation.x = Math.PI/2; g.add(c);
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.4,6,4), new THREE.MeshBasicMaterial({ color: C.coin, transparent: true, opacity: 0.15 })));
+  var lanes = [-3.8,-1.8,0,1.8,3.8];
+  g.position.set(lanes[Math.floor(Math.random()*lanes.length)], 1.0, -60-Math.random()*20);
+  return g;
+}
+
+// ─── PARTICLES ───
+function spawnP(x, z, c1, c2, n) {
+  for (var i = 0; i < n; i++) {
+    var p = new THREE.Mesh(new THREE.BoxGeometry(0.12,0.12,0.12), new THREE.MeshBasicMaterial({ color: Math.random()>0.5?c1:c2 }));
+    p.position.set(x+(Math.random()-0.5)*0.5, 0.8, z);
+    p.userData.vx=(Math.random()-0.5)*0.25; p.userData.vy=Math.random()*0.18+0.08;
+    p.userData.vz=(Math.random()-0.5)*0.25; p.userData.life=1;
+    scene.add(p); particles.push(p);
+  }
+}
+function updateParticles() {
+  for (var i = particles.length-1; i >= 0; i--) {
+    var p = particles[i];
+    p.position.x+=p.userData.vx; p.position.y+=p.userData.vy; p.position.z+=p.userData.vz;
+    p.userData.vy-=0.007; p.userData.life-=0.025;
+    p.material.opacity=Math.max(0,p.userData.life); p.material.transparent=true;
+    p.rotation.x+=0.12; p.rotation.z+=0.08;
+    if(p.userData.life<=0){scene.remove(p);particles.splice(i,1);}
+  }
+}
+
+// ─── CONTROLS ───
+function setupGyroscope() {
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    document.getElementById('start-btn').addEventListener('click', function() {
+      DeviceOrientationEvent.requestPermission().then(function(s) {
+        if (s === 'granted') { window.addEventListener('deviceorientation', handleGyro); gyroAvailable = true; }
+      }).catch(function(e) { console.error(e); });
+    }, { once: true });
+  } else {
+    window.addEventListener('deviceorientation', function(e) { if (e.gamma !== null) { gyroAvailable = true; handleGyro(e); } });
+  }
+}
+function handleGyro(e) { if (e.gamma !== null) gyroGamma = e.gamma; }
+var touchX = null;
+function setupTouchControls() {
+  document.addEventListener('touchstart', function(e) { if (gameState !== 'playing') return; touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchmove', function(e) {
+    if (gameState !== 'playing' || touchX === null) return;
+    targetX += (e.touches[0].clientX - touchX) * 0.025;
+    targetX = Math.max(-4.5, Math.min(4.5, targetX)); touchX = e.touches[0].clientX;
+  }, { passive: true });
+  document.addEventListener('touchend', function() { touchX = null; }, { passive: true });
+  var keys = {};
+  document.addEventListener('keydown', function(e) { keys[e.key] = true; });
+  document.addEventListener('keyup', function(e) { keys[e.key] = false; });
+  setInterval(function() {
+    if (gameState !== 'playing') return;
+    if (keys['ArrowLeft'] || keys['a']) targetX -= 0.15;
+    if (keys['ArrowRight'] || keys['d']) targetX += 0.15;
+    targetX = Math.max(-4.5, Math.min(4.5, targetX));
+  }, 16);
+}
+
+// ─── GAME ───
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('game-over-screen').style.display = 'none';
+  document.getElementById('ad-space').style.display = 'none';
+  document.getElementById('warning-text').style.opacity = '0';
+  for (var i = 0; i < obstacles.length; i++) scene.remove(obstacles[i]); obstacles = [];
+  for (var i = 0; i < coins.length; i++) scene.remove(coins[i]); coins = [];
+  for (var i = 0; i < particles.length; i++) scene.remove(particles[i]); particles = [];
+  score=0; speed=0.25; playerX=0; targetX=0; lives=3; combo=0; comboTimer=0;
+  invincible=false; invincibleTimer=0; difficultyTimer=0; obstacleFrequency=60;
+  frameCount=0; distance=0; runCycle=0; gameState='playing';
+  updateLivesUI();
+  document.getElementById('score-display').textContent='0';
+  document.getElementById('combo-display').style.opacity='0';
+  gorani.position.set(0,0,3); gorani.rotation.set(0,Math.PI,0); gorani.visible=true;
+  initAudio();
+  sfxStart();
+  startBGM();
+}
+
+function gameOver() {
+  gameState = 'gameover';
+  stopBGM();
+  sfxGameOver();
+  document.getElementById('game-over-screen').style.display = 'flex';
+  document.getElementById('final-score').textContent = score.toLocaleString();
+  document.getElementById('final-distance').textContent = Math.floor(distance) + ' m 생존';
+  document.getElementById('ad-space').style.display = 'flex';
+  if (score > bestScore) {
+    bestScore = score; try{localStorage.setItem('goranirun_best',bestScore.toString());}catch(e){}
+    document.getElementById('new-best').style.display = 'block';
+    document.getElementById('best-score-text').textContent = 'BEST: ' + bestScore;
+  } else { document.getElementById('new-best').style.display = 'none'; }
+}
+
+function updateLivesUI() { for (var i=1;i<=3;i++) document.getElementById('life'+i).className = i<=lives?'life-icon':'life-icon lost'; }
+
+function checkHit(o) {
+  var hw=(o.userData.width||1.6)*0.5+0.25, hl=(o.userData.length||3)*0.45;
+  return Math.abs(gorani.position.x-o.position.x)<hw && Math.abs(gorani.position.z-o.position.z)<hl;
+}
+function checkNear(o) {
+  var hw=(o.userData.width||1.6)*0.5+0.25, dx=Math.abs(gorani.position.x-o.position.x);
+  return dx<hw+1.0 && dx>=hw && Math.abs(gorani.position.z-o.position.z)<2.5;
+}
+
+// ─── MAIN LOOP ───
+function animate() {
+  requestAnimationFrame(animate);
+  frameCount++;
+  animateGorani();
+
+  if (gameState === 'playing') {
+    updateGame();
+  } else if (gameState === 'menu') {
+    camera.position.x = Math.sin(frameCount * 0.004) * 0.8;
+    gorani.position.x = Math.sin(frameCount * 0.006) * 2;
+    scrollRoad(0.06);
+    for (var i = 0; i < decorations.length; i++) {
+      decorations[i].position.z -= 0.06;
+      if (decorations[i].position.z < -300) decorations[i].position.z += 300;
+    }
+  }
+
+  for (var i = 0; i < coins.length; i++) coins[i].rotation.y = frameCount * 0.05;
+  updateParticles();
+  renderer.render(scene, camera);
+}
+
+function updateGame() {
+  if (gyroAvailable) { targetX = (gyroGamma/28)*4.5; targetX = Math.max(-4.5,Math.min(4.5,targetX)); }
+  playerX += (targetX - playerX) * 0.12;
+  gorani.position.x = playerX;
+  // ★ 고라니 Z는 고정! 좌우만 움직임
+
+  difficultyTimer++;
+  if (difficultyTimer % 350 === 0) { speed = Math.min(speed+0.015, maxSpeed); if (obstacleFrequency>22) obstacleFrequency-=2; }
+
+  score += Math.floor(speed * 4);
+  distance += speed * 1.5;
+  document.getElementById('score-display').textContent = score.toLocaleString();
+  document.getElementById('distance-display').textContent = Math.floor(distance) + ' m';
+
+  // 발걸음 소리 (또각또각)
+  if (frameCount % 12 === 0) {
+    playTone(80 + Math.random() * 30, 0.06, 'triangle', 0.07);
+  }
+
+  // ★ 도로는 천천히 +Z로 스크롤 (달리는 느낌)
+  scrollRoad(speed * 0.4);
+
+  // ★ 차 스폰 (멀리 -Z = 화면 위)
+  if (frameCount % obstacleFrequency === 0) {
+    var obs = createVehicle(); scene.add(obs); obstacles.push(obs);
+    if (Math.random() < 0.35 && speed > 0.35) {
+      var obs2 = createVehicle();
+      var others = [-3.8,-1.8,0,1.8,3.8].filter(function(l){return Math.abs(l-obs.userData.lane)>1.5;});
+      var l2 = others[Math.floor(Math.random()*others.length)];
+      obs2.position.x = l2; obs2.userData.lane = l2; obs2.position.z -= 3+Math.random()*5;
+      scene.add(obs2); obstacles.push(obs2);
+    }
+  }
+
+  if (frameCount % 90 === 0 && Math.random() < 0.5) { var cn = createCoin(); scene.add(cn); coins.push(cn); }
+
+  // ★ 차는 빠르게 +Z로 이동 (화면 위→아래로 쓩쓩)
+  for (var i = obstacles.length-1; i >= 0; i--) {
+    var o = obstacles[i];
+    o.position.z += o.userData.carSpeed;
+
+    if (!invincible && checkHit(o)) {
+      lives--; updateLivesUI();
+      sfxCrash();
+      spawnP(o.position.x, o.position.z, 0xff4444, 0xffaa00, 18);
+      combo=0; document.getElementById('combo-display').style.opacity='0';
+      document.getElementById('flash-overlay').style.opacity='1';
+      setTimeout(function(){document.getElementById('flash-overlay').style.opacity='0';},180);
+      var ws=['앗 위험!','조심해!','으악!','아야!'];
+      var wt=document.getElementById('warning-text');
+      wt.textContent=ws[Math.floor(Math.random()*ws.length)]; wt.style.opacity='1'; warningTimer=60;
+      if(navigator.vibrate) navigator.vibrate(120);
+      scene.remove(o); obstacles.splice(i,1);
+      if(lives<=0){gameOver();return;}
+      invincible=true; invincibleTimer=100; continue;
+    }
+
+    if (!o.userData.nearMissed && checkNear(o)) {
+      o.userData.nearMissed=true; combo++; comboTimer=130;
+      sfxNearMiss();
+      var bonus=150*combo; score+=bonus;
+      spawnP(gorani.position.x, gorani.position.z, 0x44ffaa, 0xffff44, 10);
+      var ce=document.getElementById('combo-display');
+      ce.textContent='아슬아슬! x'+combo+' +'+bonus; ce.style.opacity='1';
+    }
+
+    if (o.position.z > 15) { sfxCarPass(); scene.remove(o); obstacles.splice(i,1); }
+  }
+
+  // 코인도 도로 스크롤 속도로 이동
+  for (var i = coins.length-1; i >= 0; i--) {
+    var c = coins[i];
+    c.position.z += speed * 0.6;
+    c.position.y = 1.0 + Math.sin(frameCount*0.06+i)*0.2;
+    if (Math.abs(gorani.position.x-c.position.x)<1.0 && Math.abs(gorani.position.z-c.position.z)<1.5) {
+      score+=200; sfxCoin(); spawnP(c.position.x,c.position.z,0xffdd00,0xffff88,8);
+      scene.remove(c); coins.splice(i,1); continue;
+    }
+    if (c.position.z > 15) { scene.remove(c); coins.splice(i,1); }
+  }
+
+  if (comboTimer>0){comboTimer--;if(comboTimer<=0){combo=0;document.getElementById('combo-display').style.opacity='0';}}
+  if (warningTimer>0){warningTimer--;if(warningTimer<=0) document.getElementById('warning-text').style.opacity='0';}
+  if (invincible){invincibleTimer--;if(invincibleTimer<=0){invincible=false;gorani.visible=true;}}
+
+  // 배경도 도로와 같은 속도로 스크롤
+  for (var i = 0; i < decorations.length; i++) {
+    decorations[i].position.z -= speed * 0.4;
+    if (decorations[i].position.z < -300) decorations[i].position.z += 300;
+  }
+
+  camera.position.x += (playerX * 0.3 - camera.position.x) * 0.06;
+  camera.position.y = 5.5 + Math.sin(frameCount * 0.015) * 0.08;
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ─── 3D GORANI SNAPSHOT RENDERER ───
+// 별도 미니 씬에 고라니를 복제해서 원하는 앵글로 찍어서 캔버스에 복사
+
+function buildSnapshotGorani(isDead) {
+  var g = new THREE.Group();
+  var bm = new THREE.MeshLambertMaterial({ color: C.goraniBody });
+
+  var body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.75, 1.6), bm);
+  body.position.set(0, 1.1, 0); g.add(body);
+  var belly = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.25, 1.3), new THREE.MeshLambertMaterial({ color: C.goraniBelly }));
+  belly.position.set(0, 0.78, 0); g.add(belly);
+
+  var hg = new THREE.Group(); hg.position.set(0, 1.65, -0.7);
+  hg.add(new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.6, 0.7), bm));
+  var sn = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.35), new THREE.MeshLambertMaterial({ color: C.goraniLight }));
+  sn.position.set(0, -0.1, -0.4); hg.add(sn);
+  var ns = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.05), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+  ns.position.set(0, 0, -0.58); hg.add(ns);
+
+  if (isDead) {
+    // X 눈 (네모 조합)
+    [-0.2, 0.2].forEach(function(x) {
+      // X자를 두 개의 얇은 직사각형 교차로
+      var m1 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.04), new THREE.MeshBasicMaterial({ color: 0x666688 }));
+      m1.position.set(x, 0.1, -0.36); m1.rotation.z = 0.7; hg.add(m1);
+      var m2 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.04), new THREE.MeshBasicMaterial({ color: 0x666688 }));
+      m2.position.set(x, 0.1, -0.36); m2.rotation.z = -0.7; hg.add(m2);
+    });
+    // 찡그린 입
+    var mouth = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.04), new THREE.MeshBasicMaterial({ color: 0x886655 }));
+    mouth.position.set(0, -0.18, -0.5); mouth.rotation.z = 0.15; hg.add(mouth);
+  } else {
+    // 일반 눈
+    [-0.2, 0.2].forEach(function(x) {
+      var ew = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.2, 0.04), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      ew.position.set(x, 0.1, -0.33); hg.add(ew);
+      var ey = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.05), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+      ey.position.set(x, 0.08, -0.35); hg.add(ey);
+      var sh = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.02), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      sh.position.set(x + 0.03, 0.13, -0.37); hg.add(sh);
+    });
+  }
+
+  // 귀
+  [[-0.22, 0.42, 0, -0.2], [0.22, 0.42, 0, 0.2]].forEach(function(d) {
+    var ear = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.35, 4), bm);
+    ear.position.set(d[0], d[1], d[2]); ear.rotation.z = d[3]; hg.add(ear);
+    var ei = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 4), new THREE.MeshLambertMaterial({ color: 0xdda488 }));
+    ei.position.set(d[0], d[1] - 0.02, d[2] - 0.02); ei.rotation.z = d[3]; hg.add(ei);
+  });
+  // 엄니
+  [-0.1, 0.1].forEach(function(x) {
+    var f = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.2, 4), new THREE.MeshBasicMaterial({ color: 0xf0f0f0 }));
+    f.position.set(x, -0.25, -0.4); f.rotation.x = Math.PI; hg.add(f);
+  });
+  g.add(hg);
+
+  // 다리
+  [{ x: -0.32, z: -0.5 }, { x: 0.32, z: -0.5 }, { x: -0.32, z: 0.5 }, { x: 0.32, z: 0.5 }].forEach(function(d) {
+    var lg = new THREE.Group(); lg.position.set(d.x, 0.65, d.z);
+    lg.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.65, 0.22), bm));
+    var hoof = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.24), new THREE.MeshLambertMaterial({ color: 0x3a2a1a }));
+    hoof.position.y = -0.38; lg.add(hoof);
+    g.add(lg);
+  });
+  // 꼬리
+  var tail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.25), new THREE.MeshLambertMaterial({ color: C.goraniBelly }));
+  tail.position.set(0, 1.35, 0.9); g.add(tail);
+
+  return g;
+}
+
+function renderGorani3D(targetCanvas, viewType) {
+  // viewType: 'front-full' (전신 정면), 'front-face' (얼굴만), 'dead' (죽은 표정)
+  var w = targetCanvas.width;
+  var h = targetCanvas.height;
+
+  var miniScene = new THREE.Scene();
+  miniScene.background = null; // 투명
+
+  miniScene.add(new THREE.AmbientLight(0x889aaa, 0.6));
+  var dl = new THREE.DirectionalLight(0xffeedd, 0.8);
+  dl.position.set(2, 4, 5); miniScene.add(dl);
+  var bl = new THREE.DirectionalLight(0xaabbdd, 0.3);
+  bl.position.set(-2, 2, -3); miniScene.add(bl);
+
+  var isDead = (viewType === 'dead');
+  var model = buildSnapshotGorani(isDead);
+
+  if (isDead) {
+    // 살짝 기울어진 포즈
+    model.rotation.z = 0.15;
+    model.rotation.x = 0.05;
+  }
+
+  miniScene.add(model);
+
+  var miniCam = new THREE.PerspectiveCamera(35, w / h, 0.1, 20);
+
+  if (viewType === 'front-face') {
+    // 얼굴만 클로즈업
+    model.rotation.y = Math.PI; // 얼굴이 카메라를 향하게
+    miniCam.position.set(0, 1.7, 2.5);
+    miniCam.lookAt(0, 1.55, 0);
+  } else {
+    // 전신 (front-full 또는 dead)
+    model.rotation.y = Math.PI;
+    miniCam.position.set(0, 1.2, 4.2);
+    miniCam.lookAt(0, 0.9, 0);
+  }
+
+  var miniRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  miniRenderer.setSize(w, h);
+  miniRenderer.setClearColor(0x000000, 0);
+  miniRenderer.render(miniScene, miniCam);
+
+  // 캔버스에 복사
+  var ctx = targetCanvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(miniRenderer.domElement, 0, 0, w, h);
+
+  // 죽은 고라니에 별 이펙트 추가
+  if (isDead) {
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '16px sans-serif';
+    ctx.fillText('✦', w * 0.72, h * 0.18);
+    ctx.font = '12px sans-serif';
+    ctx.fillText('✦', w * 0.12, h * 0.25);
+    ctx.fillText('✦', w * 0.78, h * 0.75);
+  }
+
+  miniRenderer.dispose();
+}
+
+// 스피커 아이콘 (이건 그대로 Canvas 2D)
+function drawSpeakerIcon(canvas, on) {
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 36, 36);
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(14, 11); ctx.lineTo(8, 11); ctx.lineTo(8, 25);
+  ctx.lineTo(14, 25); ctx.lineTo(20, 29); ctx.lineTo(20, 7); ctx.closePath();
+  ctx.fill();
+  if (on) {
+    ctx.beginPath(); ctx.arc(20, 18, 5, -0.7, 0.7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(20, 18, 9, -0.6, 0.6); ctx.stroke();
+  } else {
+    ctx.strokeStyle = '#ff6666'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(24, 13); ctx.lineTo(32, 23); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(32, 13); ctx.lineTo(24, 23); ctx.stroke();
+  }
+}
+
+// 트로피 (Canvas 2D)
+function drawTrophy(canvas) {
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 32, 32);
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath();
+  ctx.moveTo(6, 6); ctx.lineTo(26, 6); ctx.lineTo(23, 18); ctx.lineTo(9, 18); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff3b0';
+  ctx.beginPath(); ctx.moveTo(10, 8); ctx.lineTo(14, 8); ctx.lineTo(13, 16); ctx.lineTo(11, 16); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#daa520'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(5, 12, 4, -Math.PI*0.5, Math.PI*0.5); ctx.stroke();
+  ctx.beginPath(); ctx.arc(27, 12, 4, Math.PI*0.5, -Math.PI*0.5); ctx.stroke();
+  ctx.fillStyle = '#daa520'; ctx.fillRect(14, 18, 4, 5);
+  ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.roundRect(10, 23, 12, 4, 1); ctx.fill();
+}
+
+function drawAllArt() {
+  // 타이틀: 전신 정면
+  renderGorani3D(document.getElementById('title-gorani'), 'front-full');
+  // 생명: 얼굴 클로즈업
+  ['life1','life2','life3'].forEach(function(id) {
+    renderGorani3D(document.getElementById(id), 'front-face');
+  });
+  // 게임오버: 죽은 표정 전신
+  renderGorani3D(document.getElementById('dead-gorani-canvas'), 'dead');
+  // 트로피, 스피커
+  drawTrophy(document.getElementById('trophy-canvas'));
+  drawSoundIcon();
+}
+
+function drawSoundIcon() {
+  drawSpeakerIcon(document.getElementById('sound-canvas'), soundEnabled);
+}
+
+init();
+drawAllArt();
+</script>
+</body>
+</html>
