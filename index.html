@@ -55,6 +55,27 @@
   .powerup-indicator.shield{background:rgba(50,150,255,0.6);border:1px solid rgba(100,180,255,0.8);}
   .powerup-indicator.magnet{background:rgba(220,50,220,0.6);border:1px solid rgba(255,100,255,0.8);}
   .powerup-indicator.slow{background:rgba(50,200,150,0.6);border:1px solid rgba(100,255,200,0.8);}
+  /* ─── SKIN SHOP ─── */
+  #skin-btn{font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;color:#ffdd88;background:rgba(255,200,50,0.12);border:1px solid rgba(255,200,50,0.35);padding:10px 28px;border-radius:30px;cursor:pointer;letter-spacing:3px;margin-top:12px;-webkit-tap-highlight-color:transparent;}
+  #skin-btn:active{transform:scale(0.96);}
+  #coin-display{font-family:'Orbitron',sans-serif;font-size:12px;color:#ffdd00;letter-spacing:2px;margin-top:8px;}
+  #skin-shop{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(5,10,5,0.96);z-index:150;display:none;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:30px 15px 60px;backdrop-filter:blur(6px);}
+  #skin-shop h2{font-family:'Noto Sans KR',sans-serif;font-size:24px;font-weight:900;color:#fff;letter-spacing:4px;margin-bottom:5px;}
+  #skin-shop .shop-coins{font-family:'Orbitron',sans-serif;font-size:14px;color:#ffdd00;letter-spacing:2px;margin-bottom:20px;}
+  .skin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:360px;}
+  .skin-card{background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.1);border-radius:14px;padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:all 0.2s;-webkit-tap-highlight-color:transparent;}
+  .skin-card:active{transform:scale(0.95);}
+  .skin-card.selected{border-color:rgba(100,255,100,0.7);background:rgba(100,255,100,0.08);box-shadow:0 0 15px rgba(100,255,100,0.15);}
+  .skin-card.locked{opacity:0.5;}
+  .skin-card .skin-preview{width:64px;height:64px;margin-bottom:6px;}
+  .skin-card .skin-name{font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:700;color:#fff;margin-bottom:3px;}
+  .skin-card .skin-cost{font-family:'Orbitron',sans-serif;font-size:9px;color:#ffdd00;letter-spacing:1px;}
+  .skin-card .skin-cost.achievement{color:#88ff88;}
+  .skin-card .skin-cost.owned{color:#88aaff;}
+  #shop-close-btn{font-family:'Noto Sans KR',sans-serif;font-size:14px;font-weight:900;color:#fff;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.2);padding:14px 40px;border-radius:50px;cursor:pointer;letter-spacing:4px;margin-top:20px;}
+  #shop-equip-btn{font-family:'Noto Sans KR',sans-serif;font-size:14px;font-weight:900;color:#fff;background:linear-gradient(135deg,rgba(80,180,50,0.25),rgba(50,130,30,0.35));border:2px solid rgba(100,200,60,0.5);padding:14px 40px;border-radius:50px;cursor:pointer;letter-spacing:4px;margin-top:12px;}
+  .shop-section-title{font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:2px;margin:15px 0 8px;width:100%;max-width:360px;}
+  .skin-card .unlock-info{font-family:'Noto Sans KR',sans-serif;font-size:8px;color:rgba(255,255,255,0.4);text-align:center;margin-top:2px;}
 </style>
 </head>
 <body>
@@ -76,7 +97,17 @@
   <div class="flavor-text">도로를 건너는 고라니를 도와주세요!</div>
   <div class="best-score-display" id="best-score-text">BEST: 0</div>
   <button id="start-btn">달리기</button>
+  <button id="skin-btn">스킨샵</button>
+  <div id="coin-display">COIN: 0</div>
   <div class="gyro-hint">핸드폰을 기울여서 조작 · 더블탭으로 점프!</div>
+</div>
+<div id="skin-shop">
+  <h2>스킨샵</h2>
+  <div class="shop-coins" id="shop-coins">COIN: 0</div>
+  <div class="shop-section-title">악세서리</div>
+  <div class="skin-grid" id="skin-grid"></div>
+  <button id="shop-equip-btn">장착하기</button>
+  <button id="shop-close-btn">닫기</button>
 </div>
 <div id="game-over-screen">
   <canvas class="dead-gorani" id="dead-gorani-canvas" width="200" height="200"></canvas>
@@ -191,6 +222,30 @@ var bossMoveTimer = 0;
 var bossLane = 0; // 현재 보스 레인 (-1, 0, 1)
 var bossTargetLane = 0;
 var bossDefeated = 0; // 처치한 보스 수
+
+// ─── SKIN / ACCESSORY SYSTEM ───
+var totalCoins = 0; // 누적 코인 (게임 간 저장)
+var equippedSkin = 'none';
+var unlockedSkins = ['none'];
+var skinShopSelected = 'none'; // 샵에서 선택 중인 스킨
+
+// 업적 추적 (게임 간 저장)
+var stats = { maxDist: 0, bossKills: 0, totalGames: 0, maxCombo: 0, totalJumps: 0, feverCount: 0 };
+
+var SKINS = [
+  { id: 'none', name: '기본', cost: 0, type: 'free', desc: '엄니가 매력적인 기본 고라니' },
+  { id: 'crown', name: '왕관', cost: 500, type: 'coin', desc: '고라니 왕!' },
+  { id: 'headband', name: '머리띠', cost: 300, type: 'coin', desc: '빨간 머리띠' },
+  { id: 'glasses', name: '선글라스', cost: 400, type: 'coin', desc: '쿨한 선글라스' },
+  { id: 'scarf', name: '목도리', cost: 600, type: 'coin', desc: '따뜻한 빨간 목도리' },
+  { id: 'tophat', name: '실크햇', cost: 800, type: 'coin', desc: '신사 고라니' },
+  { id: 'halo', name: '천사링', cost: 0, type: 'achievement', unlock: function(){ return stats.maxDist >= 1000; }, unlockText: '1000m 생존' },
+  { id: 'helmet', name: '헬멧', cost: 0, type: 'achievement', unlock: function(){ return stats.bossKills >= 3; }, unlockText: '보스 3마리 처치' },
+  { id: 'cape', name: '망토', cost: 0, type: 'achievement', unlock: function(){ return stats.maxCombo >= 10; }, unlockText: '10콤보 달성' },
+  { id: 'flower', name: '꽃', cost: 200, type: 'coin', desc: '머리에 꽃 한 송이' },
+  { id: 'ribbon', name: '리본', cost: 350, type: 'coin', desc: '귀여운 분홍 리본' },
+  { id: 'ninja', name: '닌자밴드', cost: 0, type: 'achievement', unlock: function(){ return stats.totalJumps >= 100; }, unlockText: '100번 점프' }
+];
 
 // ─── SOUND SYSTEM (Web Audio API) ───
 var audioCtx = null;
@@ -397,6 +452,324 @@ function toggleSound() {
   else if (gameState === 'playing') { startBGM(); }
 }
 
+// ─── SKIN SYSTEM FUNCTIONS ───
+function loadSkinData() {
+  try {
+    totalCoins = parseInt(localStorage.getItem('gorani_coins') || '0');
+    equippedSkin = localStorage.getItem('gorani_skin') || 'none';
+    unlockedSkins = JSON.parse(localStorage.getItem('gorani_unlocked') || '["none"]');
+    var savedStats = localStorage.getItem('gorani_stats');
+    if (savedStats) stats = JSON.parse(savedStats);
+  } catch(e) {}
+  updateCoinDisplay();
+}
+
+function saveSkinData() {
+  try {
+    localStorage.setItem('gorani_coins', totalCoins.toString());
+    localStorage.setItem('gorani_skin', equippedSkin);
+    localStorage.setItem('gorani_unlocked', JSON.stringify(unlockedSkins));
+    localStorage.setItem('gorani_stats', JSON.stringify(stats));
+  } catch(e) {}
+}
+
+function updateCoinDisplay() {
+  var cd = document.getElementById('coin-display');
+  if (cd) cd.textContent = 'COIN: ' + totalCoins;
+  var sc = document.getElementById('shop-coins');
+  if (sc) sc.textContent = 'COIN: ' + totalCoins;
+}
+
+function addCoins(n) {
+  totalCoins += n;
+  saveSkinData();
+  updateCoinDisplay();
+}
+
+function checkAchievementUnlocks() {
+  var newUnlock = false;
+  SKINS.forEach(function(skin) {
+    if (skin.type === 'achievement' && skin.unlock && unlockedSkins.indexOf(skin.id) === -1) {
+      if (skin.unlock()) {
+        unlockedSkins.push(skin.id);
+        newUnlock = true;
+        // 알림
+        var ce = document.getElementById('combo-display');
+        if (ce && gameState === 'playing') {
+          ce.textContent = '🎉 스킨 해제: ' + skin.name + '!';
+          ce.style.color = '#88ff88'; ce.style.opacity = '1'; comboTimer = 180;
+        }
+      }
+    }
+  });
+  if (newUnlock) saveSkinData();
+}
+
+function openSkinShop() {
+  document.getElementById('skin-shop').style.display = 'flex';
+  skinShopSelected = equippedSkin;
+  checkAchievementUnlocks();
+  renderSkinGrid();
+  updateCoinDisplay();
+}
+
+function closeSkinShop() {
+  document.getElementById('skin-shop').style.display = 'none';
+}
+
+function renderSkinGrid() {
+  var grid = document.getElementById('skin-grid');
+  grid.innerHTML = '';
+  SKINS.forEach(function(skin) {
+    var owned = unlockedSkins.indexOf(skin.id) !== -1;
+    var selected = skinShopSelected === skin.id;
+    var card = document.createElement('div');
+    card.className = 'skin-card' + (selected ? ' selected' : '') + (!owned ? ' locked' : '');
+
+    // 미니 캔버스로 프리뷰
+    var cvs = document.createElement('canvas');
+    cvs.className = 'skin-preview';
+    cvs.width = 128; cvs.height = 128;
+    card.appendChild(cvs);
+
+    var nameDiv = document.createElement('div');
+    nameDiv.className = 'skin-name';
+    nameDiv.textContent = skin.name;
+    card.appendChild(nameDiv);
+
+    var costDiv = document.createElement('div');
+    if (owned) {
+      costDiv.className = 'skin-cost owned';
+      costDiv.textContent = skin.id === equippedSkin ? '장착 중' : '보유';
+    } else if (skin.type === 'coin') {
+      costDiv.className = 'skin-cost';
+      costDiv.textContent = skin.cost + ' COIN';
+    } else if (skin.type === 'achievement') {
+      costDiv.className = 'skin-cost achievement';
+      costDiv.textContent = '🔒';
+      var info = document.createElement('div');
+      info.className = 'unlock-info';
+      info.textContent = skin.unlockText || '';
+      card.appendChild(info);
+    }
+    card.appendChild(costDiv);
+
+    card.addEventListener('click', function() {
+      handleSkinCardClick(skin);
+    });
+
+    grid.appendChild(card);
+
+    // 프리뷰 렌더링 (Three.js 미니씬)
+    setTimeout(function() { renderSkinPreview(cvs, skin.id, owned); }, 50);
+  });
+}
+
+function handleSkinCardClick(skin) {
+  var owned = unlockedSkins.indexOf(skin.id) !== -1;
+  if (owned) {
+    skinShopSelected = skin.id;
+    renderSkinGrid();
+  } else if (skin.type === 'coin' && totalCoins >= skin.cost) {
+    // 구매
+    totalCoins -= skin.cost;
+    unlockedSkins.push(skin.id);
+    skinShopSelected = skin.id;
+    saveSkinData();
+    updateCoinDisplay();
+    sfxCoin();
+    renderSkinGrid();
+  } else if (skin.type === 'coin') {
+    // 코인 부족
+    showToast('코인이 부족해요! (' + skin.cost + ' 필요)');
+  } else if (skin.type === 'achievement') {
+    showToast(skin.unlockText + ' 달성 시 해제!');
+  }
+}
+
+function equipSelectedSkin() {
+  if (unlockedSkins.indexOf(skinShopSelected) !== -1) {
+    equippedSkin = skinShopSelected;
+    saveSkinData();
+    applyAccessory();
+    renderSkinGrid();
+    sfxPowerup();
+    closeSkinShop();
+  }
+}
+
+function renderSkinPreview(canvas, skinId, owned) {
+  try {
+    var w = canvas.width, h = canvas.height;
+    var ms = new THREE.Scene();
+    ms.background = null;
+    ms.add(new THREE.AmbientLight(0x889aaa, 0.6));
+    var dl = new THREE.DirectionalLight(0xffeedd, 0.8);
+    dl.position.set(2, 4, 5); ms.add(dl);
+
+    var model = buildSnapshotGorani(false);
+    model.rotation.y = Math.PI;
+    // 악세서리 추가
+    var headGroup = null;
+    model.traverse(function(child) {
+      if (child.isGroup && child.position.y > 1.5) headGroup = child;
+    });
+    if (headGroup) addAccessoryToHead(headGroup, skinId);
+    ms.add(model);
+
+    var mc = new THREE.PerspectiveCamera(35, w/h, 0.1, 20);
+    mc.position.set(0, 1.7, 2.5);
+    mc.lookAt(0, 1.55, 0);
+
+    var mr = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    mr.setSize(w, h);
+    mr.setClearColor(0x000000, 0);
+    mr.render(ms, mc);
+
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    if (!owned) ctx.globalAlpha = 0.4;
+    ctx.drawImage(mr.domElement, 0, 0, w, h);
+    ctx.globalAlpha = 1;
+    mr.dispose();
+  } catch(e) {}
+}
+
+function addAccessoryToHead(headGroup, skinId) {
+  switch(skinId) {
+    case 'crown':
+      var crown = new THREE.Group();
+      var base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.25, 0.12, 6), new THREE.MeshLambertMaterial({ color: 0xffcc00 }));
+      base.position.y = 0.5; crown.add(base);
+      [-0.12, 0, 0.12].forEach(function(x) {
+        var spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.15, 4), new THREE.MeshLambertMaterial({ color: 0xffdd33 }));
+        spike.position.set(x, 0.62, 0); crown.add(spike);
+      });
+      var gem = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff2244 }));
+      gem.position.set(0, 0.55, -0.22); crown.add(gem);
+      headGroup.add(crown);
+      break;
+    case 'headband':
+      var band = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.04, 6, 12), new THREE.MeshLambertMaterial({ color: 0xff2222 }));
+      band.position.set(0, 0.35, -0.08); band.rotation.x = Math.PI * 0.5;
+      headGroup.add(band);
+      // 뒤쪽 리본 꼬리
+      var tail1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.25, 0.03), new THREE.MeshLambertMaterial({ color: 0xff2222 }));
+      tail1.position.set(0.12, 0.25, 0.22); tail1.rotation.z = 0.3; headGroup.add(tail1);
+      var tail2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.03), new THREE.MeshLambertMaterial({ color: 0xcc1111 }));
+      tail2.position.set(0.18, 0.15, 0.22); tail2.rotation.z = 0.5; headGroup.add(tail2);
+      break;
+    case 'glasses':
+      var glasses = new THREE.Group();
+      [-0.2, 0.2].forEach(function(x) {
+        var lens = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.03), new THREE.MeshBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.7 }));
+        lens.position.set(x, 0.1, -0.38); glasses.add(lens);
+        var frame = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.02), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+        frame.position.set(x, 0.1, -0.37); glasses.add(frame);
+      });
+      var bridge = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 0.02), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+      bridge.position.set(0, 0.12, -0.38); glasses.add(bridge);
+      headGroup.add(glasses);
+      break;
+    case 'scarf':
+      var scarf = new THREE.Group();
+      var wrap = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.08, 6, 10), new THREE.MeshLambertMaterial({ color: 0xcc2222 }));
+      wrap.position.set(0, -0.3, -0.1); wrap.rotation.x = Math.PI * 0.4;
+      scarf.add(wrap);
+      var hang = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 0.06), new THREE.MeshLambertMaterial({ color: 0xdd3333 }));
+      hang.position.set(0.08, -0.5, -0.25); hang.rotation.z = -0.2; scarf.add(hang);
+      headGroup.add(scarf);
+      break;
+    case 'tophat':
+      var hat = new THREE.Group();
+      var brim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 8), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
+      brim.position.y = 0.45; hat.add(brim);
+      var top = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.3, 8), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+      top.position.y = 0.62; hat.add(top);
+      var ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.05, 8), new THREE.MeshLambertMaterial({ color: 0xcc2244 }));
+      ribbon.position.y = 0.5; hat.add(ribbon);
+      headGroup.add(hat);
+      break;
+    case 'halo':
+      var halo = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.03, 8, 16), new THREE.MeshBasicMaterial({ color: 0xffee88 }));
+      halo.position.set(0, 0.6, -0.1); halo.rotation.x = Math.PI * 0.5;
+      headGroup.add(halo);
+      // 글로우
+      var glow = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.06, 8, 16), new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.2 }));
+      glow.position.set(0, 0.6, -0.1); glow.rotation.x = Math.PI * 0.5;
+      headGroup.add(glow);
+      break;
+    case 'helmet':
+      var helmet = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6, 0, Math.PI*2, 0, Math.PI*0.6), new THREE.MeshLambertMaterial({ color: 0x336699 }));
+      helmet.position.set(0, 0.3, -0.05);
+      headGroup.add(helmet);
+      var visor = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.05), new THREE.MeshLambertMaterial({ color: 0x88bbdd, transparent: true, opacity: 0.5 }));
+      visor.position.set(0, 0.15, -0.32); headGroup.add(visor);
+      break;
+    case 'cape':
+      // 망토는 body에 붙여야하지만 headGroup 기준으로 뒤쪽에 배치
+      var cape = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.05), new THREE.MeshLambertMaterial({ color: 0x8822cc, side: THREE.DoubleSide }));
+      cape.position.set(0, -0.8, 0.4); cape.rotation.x = 0.1;
+      headGroup.add(cape);
+      var capeEdge = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.06, 0.06), new THREE.MeshLambertMaterial({ color: 0xffcc00 }));
+      capeEdge.position.set(0, -0.35, 0.4);
+      headGroup.add(capeEdge);
+      break;
+    case 'flower':
+      var flower = new THREE.Group();
+      var center = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffee00 }));
+      center.position.set(0.25, 0.4, -0.05); flower.add(center);
+      [0, 1, 2, 3, 4].forEach(function(i) {
+        var angle = (i / 5) * Math.PI * 2;
+        var petal = new THREE.Mesh(new THREE.SphereGeometry(0.06, 5, 4), new THREE.MeshLambertMaterial({ color: 0xff6699 }));
+        petal.position.set(0.25 + Math.cos(angle)*0.08, 0.4 + Math.sin(angle)*0.08, -0.05);
+        petal.scale.set(1, 1, 0.5);
+        flower.add(petal);
+      });
+      headGroup.add(flower);
+      break;
+    case 'ribbon':
+      var rbGroup = new THREE.Group();
+      var bow1 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 5, 4), new THREE.MeshLambertMaterial({ color: 0xff66aa }));
+      bow1.position.set(-0.25, 0.42, 0.05); bow1.scale.set(1.2, 0.8, 0.5); rbGroup.add(bow1);
+      var bow2 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 5, 4), new THREE.MeshLambertMaterial({ color: 0xff66aa }));
+      bow2.position.set(-0.15, 0.42, 0.05); bow2.scale.set(1.2, 0.8, 0.5); rbGroup.add(bow2);
+      var knot = new THREE.Mesh(new THREE.SphereGeometry(0.04, 5, 4), new THREE.MeshLambertMaterial({ color: 0xdd4488 }));
+      knot.position.set(-0.2, 0.42, -0.02); rbGroup.add(knot);
+      headGroup.add(rbGroup);
+      break;
+    case 'ninja':
+      var nband = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.1, 0.55), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+      nband.position.set(0, 0.2, -0.08); headGroup.add(nband);
+      // 뒤로 날리는 끈
+      var ntail1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.35), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+      ntail1.position.set(0.15, 0.2, 0.35); ntail1.rotation.x = -0.2; ntail1.rotation.y = 0.15; headGroup.add(ntail1);
+      var ntail2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.3), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+      ntail2.position.set(0.1, 0.22, 0.3); ntail2.rotation.x = -0.3; ntail2.rotation.y = -0.1; headGroup.add(ntail2);
+      break;
+  }
+}
+
+function applyAccessory() {
+  if (!gorani || !gorani.userData.head) return;
+  // 기존 악세서리 제거
+  var head = gorani.userData.head;
+  var toRemove = [];
+  head.children.forEach(function(child) {
+    if (child.userData && child.userData.isAccessory) toRemove.push(child);
+  });
+  toRemove.forEach(function(c) { head.remove(c); });
+
+  if (equippedSkin === 'none') return;
+
+  // 래퍼 그룹으로 악세서리 추가 (제거 쉽게)
+  var accGroup = new THREE.Group();
+  accGroup.userData.isAccessory = true;
+  addAccessoryToHead(accGroup, equippedSkin);
+  // accGroup의 자식들을 head에 직접 추가하는 대신 그룹 자체를 추가
+  head.add(accGroup);
+}
+
 // ─── INIT ───
 function init() {
   scene = new THREE.Scene();
@@ -431,10 +804,16 @@ function init() {
   document.getElementById('restart-btn').addEventListener('click', startGame);
   document.getElementById('sound-btn').addEventListener('click', toggleSound);
   document.getElementById('share-btn').addEventListener('click', shareScore);
+  document.getElementById('skin-btn').addEventListener('click', openSkinShop);
+  document.getElementById('shop-close-btn').addEventListener('click', closeSkinShop);
+  document.getElementById('shop-equip-btn').addEventListener('click', equipSelectedSkin);
 
   try { bestScore = parseInt(localStorage.getItem('goranirun_best') || '0'); } catch(e) { bestScore = 0; }
   document.getElementById('best-score-text').textContent = 'BEST: ' + bestScore;
+  loadSkinData();
   animate();
+  // 초기 악세서리 적용
+  setTimeout(function(){ applyAccessory(); }, 100);
 }
 
 // ─── GORANI (화면 아래쪽, 얼굴이 카메라를 향함) ───
@@ -765,6 +1144,7 @@ function startFever() {
   isFever = true;
   feverTimer = feverDuration;
   feverGauge = 0;
+  stats.feverCount++;
   sfxFeverStart();
   // 피버 시작 텍스트
   var ft = document.getElementById('fever-text');
@@ -1250,6 +1630,7 @@ function triggerJump() {
   jumpVelocity = 0.28;
   jumpY = 0;
   sfxJump();
+  stats.totalJumps++;
 }
 
 // ─── GAME ───
@@ -1289,6 +1670,7 @@ function startGame() {
   document.getElementById('score-display').textContent='0';
   document.getElementById('combo-display').style.opacity='0';
   gorani.position.set(0,0,3); gorani.rotation.set(0,Math.PI,0); gorani.visible=true;
+  applyAccessory();
   initAudio();
   sfxStart();
   startBGM();
@@ -1302,6 +1684,13 @@ function gameOver() {
   document.getElementById('score-display').style.color = '#fff';
   stopBGM();
   sfxGameOver();
+  // 업적 통계 업데이트
+  stats.totalGames++;
+  if (distance > stats.maxDist) stats.maxDist = Math.floor(distance);
+  if (combo > stats.maxCombo) stats.maxCombo = combo;
+  stats.bossKills += bossDefeated;
+  saveSkinData();
+  checkAchievementUnlocks();
   document.getElementById('game-over-screen').style.display = 'flex';
   document.getElementById('final-score').textContent = score.toLocaleString();
   document.getElementById('final-distance').textContent = Math.floor(distance) + ' m 생존';
@@ -1600,7 +1989,7 @@ function updateGame() {
 
     if (Math.abs(gorani.position.x-c.position.x)<magnetRange && Math.abs(gorani.position.z-c.position.z)<(hasMagnet||isFever?2.5:1.5)) {
       var coinScore = 200 * scoreMulti;
-      score+=coinScore; sfxCoin(); spawnP(c.position.x,c.position.z,0xffdd00,0xffff88,8);
+      score+=coinScore; addCoins(1); sfxCoin(); spawnP(c.position.x,c.position.z,0xffdd00,0xffff88,8);
       scene.remove(c); coins.splice(i,1); continue;
     }
     if (c.position.z > 15) { scene.remove(c); coins.splice(i,1); }
