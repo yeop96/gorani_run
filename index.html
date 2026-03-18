@@ -97,6 +97,12 @@
   <div class="powerup-indicator magnet" id="pu-magnet">🧲 자석</div>
   <div class="powerup-indicator slow" id="pu-slow">🐌 슬로우</div>
 </div>
+<div id="boss-warning" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Noto Sans KR',sans-serif;font-size:32px;font-weight:900;color:#ff4444;text-shadow:0 0 40px rgba(255,50,50,0.9),0 0 80px rgba(255,0,0,0.5);z-index:25;opacity:0;pointer-events:none;letter-spacing:6px;">⚠️ 보스 트럭 접근 ⚠️</div>
+<div id="boss-hp-container" style="position:fixed;top:85px;left:50%;transform:translateX(-50%);width:200px;height:14px;background:rgba(0,0,0,0.6);border-radius:7px;border:1px solid rgba(255,50,50,0.5);z-index:20;overflow:hidden;opacity:0;transition:opacity 0.3s;">
+  <div id="boss-hp-bar" style="width:100%;height:100%;background:linear-gradient(90deg,#ff2200,#ff6644);border-radius:7px;transition:width 0.3s;"></div>
+</div>
+<div id="boss-hp-label" style="position:fixed;top:70px;left:50%;transform:translateX(-50%);font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:700;color:#ff6644;z-index:20;opacity:0;letter-spacing:2px;">BOSS</div>
+<div id="env-name" style="position:fixed;bottom:50px;left:50%;transform:translateX(-50%);font-family:'Noto Sans KR',sans-serif;font-size:14px;font-weight:700;color:rgba(255,255,255,0.6);z-index:20;opacity:0;transition:opacity 0.5s;pointer-events:none;letter-spacing:3px;text-shadow:0 0 15px rgba(255,255,255,0.3);"></div>
 <div id="ad-space">— AD SPACE —</div>
 <div id="share-toast">클립보드에 복사됨!</div>
 
@@ -159,6 +165,32 @@ var C = {
   tree: 0x1a6632, trunk: 0x5c3a1e, mountain: 0x2a3a4a,
   coin: 0xffdd00, bush: 0x2a7030
 };
+
+// ─── ENVIRONMENT CYCLE SYSTEM ───
+// 거리 기반으로 환경이 변함: 밤 → 새벽 → 낮 → 석양 → 밤 (반복)
+var envPhase = 0; // 0=밤, 1=새벽, 2=낮, 3=석양
+var envTransition = 0; // 0~1 전환 진행도
+var envPhaseDistance = 0; // 현재 페이즈에서의 거리
+var ENV_PHASE_LENGTH = 300; // 각 환경 300m 지속
+var ENV_TRANSITION_LENGTH = 80; // 전환에 80m
+var envThemes = [
+  { sky: new THREE.Color(0x0c1520), fog: new THREE.Color(0x0c1520), grass: new THREE.Color(0x2d7a3e), road: new THREE.Color(0x2a2a38), ambient: 0.5, dirLight: 0.6, name: '밤' },
+  { sky: new THREE.Color(0x2a1a3a), fog: new THREE.Color(0x3a2a4a), grass: new THREE.Color(0x3a6a40), road: new THREE.Color(0x35304a), ambient: 0.6, dirLight: 0.7, name: '새벽' },
+  { sky: new THREE.Color(0x5588cc), fog: new THREE.Color(0x6699dd), grass: new THREE.Color(0x44aa55), road: new THREE.Color(0x555566), ambient: 0.8, dirLight: 1.0, name: '낮' },
+  { sky: new THREE.Color(0x883322), fog: new THREE.Color(0x994433), grass: new THREE.Color(0x557733), road: new THREE.Color(0x443340), ambient: 0.6, dirLight: 0.8, name: '석양' }
+];
+
+// ─── BOSS TRUCK SYSTEM ───
+var bossActive = false;
+var bossTruck = null;
+var bossHP = 0, bossMaxHP = 0;
+var bossWarningTimer = 0;
+var bossPhase = 0; // 보스 행동 패턴
+var bossNextSpawnDist = 500; // 첫 보스 출현 거리
+var bossMoveTimer = 0;
+var bossLane = 0; // 현재 보스 레인 (-1, 0, 1)
+var bossTargetLane = 0;
+var bossDefeated = 0; // 처치한 보스 수
 
 // ─── SOUND SYSTEM (Web Audio API) ───
 var audioCtx = null;
@@ -327,6 +359,33 @@ function sfxFeverHit() {
   playTone(200, 0.15, 'sawtooth', 0.15);
   setTimeout(function(){ playTone(400, 0.1, 'square', 0.1); }, 50);
   playNoise(0.12, 0.1);
+}
+
+function sfxBossWarning() {
+  playTone(150, 0.3, 'sawtooth', 0.2);
+  setTimeout(function(){ playTone(150, 0.3, 'sawtooth', 0.2); }, 400);
+  setTimeout(function(){ playTone(150, 0.3, 'sawtooth', 0.2); }, 800);
+}
+function sfxBossHit() {
+  playNoise(0.2, 0.2);
+  playTone(100, 0.2, 'sawtooth', 0.18);
+  setTimeout(function(){ playTone(150, 0.15, 'square', 0.12); }, 100);
+}
+function sfxBossDefeat() {
+  playTone(523, 0.12, 'square', 0.2);
+  setTimeout(function(){ playTone(659, 0.12, 'square', 0.18); }, 100);
+  setTimeout(function(){ playTone(784, 0.12, 'square', 0.2); }, 200);
+  setTimeout(function(){ playTone(1047, 0.3, 'square', 0.22); }, 300);
+  setTimeout(function(){ playNoise(0.3, 0.15); }, 350);
+}
+function sfxBossHorn() {
+  // 트럭 경적 소리
+  playTone(180, 0.5, 'sawtooth', 0.2);
+  playTone(135, 0.5, 'sawtooth', 0.15);
+}
+function sfxEnvChange() {
+  playTone(440, 0.15, 'sine', 0.08);
+  setTimeout(function(){ playTone(550, 0.15, 'sine', 0.06); }, 100);
 }
 
 function toggleSound() {
@@ -821,6 +880,298 @@ function restoreGoraniColor() {
   });
 }
 
+// ─── ENVIRONMENT UPDATE ───
+function updateEnvironment() {
+  envPhaseDistance += speed * 1.5;
+  if (envPhaseDistance >= ENV_PHASE_LENGTH) {
+    envPhaseDistance = 0;
+    envPhase = (envPhase + 1) % 4;
+    envTransition = 0;
+    // 환경 변화 알림
+    sfxEnvChange();
+    var en = document.getElementById('env-name');
+    en.textContent = envThemes[envPhase].name;
+    en.style.opacity = '1';
+    setTimeout(function(){ en.style.opacity = '0'; }, 2000);
+  }
+  // 전환 진행도
+  if (envPhaseDistance < ENV_TRANSITION_LENGTH) {
+    envTransition = envPhaseDistance / ENV_TRANSITION_LENGTH;
+  } else {
+    envTransition = 1;
+  }
+  // 현재 테마와 이전 테마를 보간
+  var prevPhase = (envPhase + 3) % 4;
+  var cur = envThemes[envPhase];
+  var prev = envThemes[prevPhase];
+  var t = envTransition;
+
+  var skyC = prev.sky.clone().lerp(cur.sky, t);
+  var fogC = prev.fog.clone().lerp(cur.fog, t);
+
+  scene.background = skyC;
+  scene.fog.color.copy(fogC);
+
+  // 조명 조절
+  scene.children.forEach(function(child) {
+    if (child.isAmbientLight) {
+      child.intensity = prev.ambient + (cur.ambient - prev.ambient) * t;
+    }
+    if (child.isDirectionalLight && child.position.y > 10) {
+      child.intensity = prev.dirLight + (cur.dirLight - prev.dirLight) * t;
+    }
+  });
+}
+
+// ─── BOSS TRUCK ───
+function createBossTruck() {
+  var group = new THREE.Group();
+  var bossNum = bossDefeated + 1;
+
+  // 메인 바디 - 거대한 빨간 트럭
+  var bodyColor = bossNum % 3 === 1 ? 0xcc1111 : bossNum % 3 === 2 ? 0x1133aa : 0x222222;
+  var cbody = new THREE.Mesh(new THREE.BoxGeometry(4.5, 1.8, 6.0), new THREE.MeshLambertMaterial({ color: bodyColor }));
+  cbody.position.set(0, 1.2, 0); group.add(cbody);
+
+  // 운전석
+  var cab = new THREE.Mesh(new THREE.BoxGeometry(4.0, 1.2, 2.5), new THREE.MeshLambertMaterial({ color: new THREE.Color(bodyColor).multiplyScalar(0.7) }));
+  cab.position.set(0, 2.5, 2.0); group.add(cab);
+
+  // 앞유리
+  var ws = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.9, 0.08), new THREE.MeshLambertMaterial({ color: 0x88aacc, transparent: true, opacity: 0.5 }));
+  ws.position.set(0, 2.5, 3.28); ws.rotation.x = 0.15; group.add(ws);
+
+  // 위험 표시 - 노란 줄무늬
+  for (var s = -1.8; s <= 1.8; s += 0.9) {
+    var stripe = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 6.0), new THREE.MeshBasicMaterial({ color: 0xffcc00 }));
+    stripe.position.set(s, 2.15, 0); group.add(stripe);
+  }
+
+  // 상단 경고등 (깜빡거림)
+  var warningLights = [];
+  [-1.5, 0, 1.5].forEach(function(x) {
+    var wl = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff4400 }));
+    wl.position.set(x, 3.2, 2.0); group.add(wl);
+    warningLights.push(wl);
+  });
+  group.userData.warningLights = warningLights;
+
+  // 거대 헤드라이트
+  var hlGeo = new THREE.BoxGeometry(0.5, 0.35, 0.08);
+  var hlMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
+  [[-1.6, 1.0, 3.04], [1.6, 1.0, 3.04]].forEach(function(p) {
+    var h = new THREE.Mesh(hlGeo, hlMat); h.position.set(p[0],p[1],p[2]); group.add(h);
+  });
+
+  // 강력한 헤드라이트 빔
+  var beamGeo = new THREE.ConeGeometry(2.5, 12, 6);
+  var beamMat = new THREE.MeshBasicMaterial({ color: 0xffffdd, transparent: true, opacity: 0.06 });
+  var beam = new THREE.Mesh(beamGeo, beamMat);
+  beam.position.set(0, 0.8, 9); beam.rotation.x = -Math.PI/2; group.add(beam);
+
+  // 거대 바퀴
+  var wg = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 6);
+  var wm = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  [[-2.0,0.4,2.2],[2.0,0.4,2.2],[-2.0,0.4,-2.2],[2.0,0.4,-2.2],[-2.0,0.4,-1.0],[2.0,0.4,-1.0]].forEach(function(p) {
+    var w = new THREE.Mesh(wg, wm); w.position.set(p[0],p[1],p[2]); w.rotation.z = Math.PI/2; group.add(w);
+  });
+
+  // 범퍼 (앞)
+  var bumper = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.6, 0.3), new THREE.MeshLambertMaterial({ color: 0x444444 }));
+  bumper.position.set(0, 0.5, 3.15); group.add(bumper);
+
+  group.userData.width = 4.8;
+  group.userData.length = 7.0;
+  group.userData.isBoss = true;
+
+  return group;
+}
+
+function spawnBoss() {
+  bossActive = true;
+  var bossNum = bossDefeated + 1;
+  bossHP = 3 + bossNum; // 점점 세짐
+  bossMaxHP = bossHP;
+  bossPhase = 0;
+  bossLane = 0;
+  bossTargetLane = 0;
+  bossMoveTimer = 0;
+
+  // 경고 연출
+  bossWarningTimer = 180; // 3초 경고
+  sfxBossWarning();
+  var bw = document.getElementById('boss-warning');
+  bw.style.opacity = '1';
+  bw.style.animation = 'pulse 0.4s ease-in-out infinite';
+
+  setTimeout(function() {
+    bw.style.opacity = '0';
+    bw.style.animation = '';
+    // 실제 보스 등장
+    bossTruck = createBossTruck();
+    bossTruck.position.set(0, 0, -90);
+    scene.add(bossTruck);
+    sfxBossHorn();
+    // HP 바 표시
+    document.getElementById('boss-hp-container').style.opacity = '1';
+    document.getElementById('boss-hp-label').style.opacity = '1';
+    document.getElementById('boss-hp-bar').style.width = '100%';
+  }, 3000);
+}
+
+function updateBoss() {
+  if (!bossActive || !bossTruck) return;
+
+  // 보스 전진 (고라니 쪽으로 천천히)
+  if (bossTruck.position.z < -15) {
+    bossTruck.position.z += 0.3;
+  } else {
+    // 보스 행동 패턴
+    bossMoveTimer++;
+
+    // 레인 변경 (주기적으로)
+    var moveInterval = Math.max(60, 150 - bossDefeated * 20);
+    if (bossMoveTimer % moveInterval === 0) {
+      // 고라니를 추적
+      if (gorani.position.x < -1.5) bossTargetLane = -1;
+      else if (gorani.position.x > 1.5) bossTargetLane = 1;
+      else bossTargetLane = 0;
+      // 가끔 랜덤으로도 움직임
+      if (Math.random() < 0.3) bossTargetLane = Math.floor(Math.random() * 3) - 1;
+    }
+
+    // 부드러운 레인 이동
+    var targetX = bossTargetLane * 2.0;
+    bossTruck.position.x += (targetX - bossTruck.position.x) * 0.03;
+
+    // 경고등 깜빡
+    if (bossTruck.userData.warningLights) {
+      bossTruck.userData.warningLights.forEach(function(wl, idx) {
+        wl.material.color.setHex((frameCount + idx * 10) % 20 < 10 ? 0xff4400 : 0xff8800);
+      });
+    }
+
+    // 보스가 가끔 경적
+    if (bossMoveTimer % 180 === 0) sfxBossHorn();
+
+    // 앞으로 살짝 전진/후진 (위협)
+    bossTruck.position.z = -15 + Math.sin(bossMoveTimer * 0.02) * 3;
+
+    // 보스와 충돌 체크 (점프로 위에서 밟으면 데미지!)
+    var bw = bossTruck.userData.width * 0.5;
+    var bl = bossTruck.userData.length * 0.45;
+    var dx = Math.abs(gorani.position.x - bossTruck.position.x);
+    var dz = Math.abs(gorani.position.z - bossTruck.position.z);
+
+    if (dx < bw && dz < bl) {
+      if (isJumping && jumpY > 1.5 && jumpVelocity < 0) {
+        // 점프로 밟기! → 보스에게 데미지
+        bossHP--;
+        sfxBossHit();
+        spawnP(bossTruck.position.x, bossTruck.position.z, 0xff4444, 0xffaa00, 30);
+        // 밟은 후 반동 점프
+        jumpVelocity = 0.22;
+        // 보스 흔들림
+        bossTruck.position.y = -0.3;
+        setTimeout(function(){ if(bossTruck) bossTruck.position.y = 0; }, 200);
+        // HP 바 업데이트
+        document.getElementById('boss-hp-bar').style.width = Math.floor(bossHP / bossMaxHP * 100) + '%';
+        // 점수
+        score += 1000;
+        var ce = document.getElementById('combo-display');
+        ce.textContent = '💥 보스 타격! (' + bossHP + '/' + bossMaxHP + ')';
+        ce.style.color = '#ff4444'; ce.style.opacity = '1'; comboTimer = 90;
+
+        if (bossHP <= 0) {
+          defeatBoss();
+        }
+      } else if (jumpY < 1.0 && !invincible) {
+        // 피버 중이면 데미지
+        if (isFever) {
+          bossHP--;
+          sfxBossHit();
+          spawnP(bossTruck.position.x, bossTruck.position.z, 0xffaa00, 0xffff44, 20);
+          document.getElementById('boss-hp-bar').style.width = Math.floor(bossHP / bossMaxHP * 100) + '%';
+          score += 1000;
+          invincible = true; invincibleTimer = 30;
+          if (bossHP <= 0) defeatBoss();
+        } else if (hasShield) {
+          hasShield = false; shieldTimer = 0;
+          document.getElementById('pu-shield').style.opacity = '0';
+          sfxCrash();
+          invincible = true; invincibleTimer = 60;
+        } else {
+          // 일반 충돌 = 데미지
+          lives--; updateLivesUI();
+          sfxCrash();
+          spawnP(gorani.position.x, gorani.position.z, 0xff4444, 0xffaa00, 18);
+          document.getElementById('flash-overlay').style.opacity = '1';
+          setTimeout(function(){document.getElementById('flash-overlay').style.opacity='0';},180);
+          if (navigator.vibrate) navigator.vibrate(200);
+          if (lives <= 0) { gameOver(); return; }
+          invincible = true; invincibleTimer = 120;
+        }
+      }
+    }
+  }
+
+  // 보스전 중에도 일반 차량 스폰 (적게)
+}
+
+function defeatBoss() {
+  sfxBossDefeat();
+  bossDefeated++;
+  bossActive = false;
+  score += 5000 * bossDefeated;
+
+  // 보스 폭발 연출
+  for (var i = 0; i < 8; i++) {
+    (function(delay) {
+      setTimeout(function() {
+        if (bossTruck) {
+          spawnP(
+            bossTruck.position.x + (Math.random()-0.5)*3,
+            bossTruck.position.z + (Math.random()-0.5)*4,
+            0xff4444, 0xffaa00, 15
+          );
+          playNoise(0.1, 0.1);
+        }
+      }, delay * 150);
+    })(i);
+  }
+
+  // 보스 날려보내기
+  setTimeout(function() {
+    if (bossTruck) {
+      bossTruck.userData.smashed = true;
+      bossTruck.userData.smashVy = 0.4;
+      bossTruck.userData.smashSpin = 0.08;
+      bossTruck.userData.smashVx = 0.2;
+    }
+  }, 1200);
+
+  // 3초 후 보스 제거
+  setTimeout(function() {
+    if (bossTruck) { scene.remove(bossTruck); bossTruck = null; }
+    document.getElementById('boss-hp-container').style.opacity = '0';
+    document.getElementById('boss-hp-label').style.opacity = '0';
+  }, 3000);
+
+  // UI
+  var ce = document.getElementById('combo-display');
+  ce.textContent = '🏆 보스 처치! +' + (5000 * bossDefeated);
+  ce.style.color = '#ffdd00'; ce.style.opacity = '1'; comboTimer = 180;
+
+  // 다음 보스 예약
+  bossNextSpawnDist = distance + 400 + bossDefeated * 100;
+
+  // 보스 처치 보상: 피버 발동!
+  if (!isFever) {
+    feverGauge = feverMax;
+    startFever();
+  }
+}
+
 // ─── PARTICLES ───
 function spawnP(x, z, c1, c2, n) {
   for (var i = 0; i < n; i++) {
@@ -916,6 +1267,16 @@ function startGame() {
   frameCount=0; distance=0; runCycle=0; isJumping=false; jumpY=0; jumpVelocity=0; lastTapTime=0;
   feverGauge=0; isFever=false; feverTimer=0; feverFlash=0;
   hasShield=false; shieldTimer=0; hasMagnet=false; magnetTimer=0; hasSlow=false; slowTimer=0;
+  envPhase=0; envTransition=1; envPhaseDistance=ENV_TRANSITION_LENGTH;
+  bossActive=false; bossHP=0; bossWarningTimer=0; bossPhase=0; bossMoveTimer=0;
+  bossNextSpawnDist=500; bossDefeated=0;
+  if(bossTruck){scene.remove(bossTruck);bossTruck=null;}
+  document.getElementById('boss-hp-container').style.opacity='0';
+  document.getElementById('boss-hp-label').style.opacity='0';
+  document.getElementById('boss-warning').style.opacity='0';
+  // 환경 초기화 (밤)
+  scene.background = new THREE.Color(0x0c1520);
+  scene.fog.color.set(0x0c1520);
   document.getElementById('fever-bar').style.width='0%';
   document.getElementById('fever-bar-container').style.opacity='0';
   document.getElementById('fever-overlay').className='';
@@ -1069,6 +1430,26 @@ function updateGame() {
     playTone(80 + Math.random() * 30, 0.06, 'triangle', 0.07);
   }
 
+  // 환경 변화 업데이트
+  updateEnvironment();
+
+  // 보스 스폰 체크
+  if (!bossActive && distance >= bossNextSpawnDist) {
+    spawnBoss();
+  }
+  // 보스 업데이트
+  if (bossActive) {
+    updateBoss();
+    // 보스 날아가는 처리
+    if (bossTruck && bossTruck.userData.smashed) {
+      bossTruck.position.y += bossTruck.userData.smashVy;
+      bossTruck.userData.smashVy -= 0.01;
+      bossTruck.rotation.z += bossTruck.userData.smashSpin;
+      bossTruck.rotation.x += 0.03;
+      bossTruck.position.x += bossTruck.userData.smashVx;
+    }
+  }
+
   // 도로 스크롤
   scrollRoad(speed * 0.4);
 
@@ -1097,8 +1478,9 @@ function updateGame() {
   if (hasMagnet) { magnetTimer--; if (magnetTimer <= 0) { hasMagnet = false; document.getElementById('pu-magnet').style.opacity = '0'; } }
   if (hasSlow) { slowTimer--; if (slowTimer <= 0) { hasSlow = false; document.getElementById('pu-slow').style.opacity = '0'; } }
 
-  // 차 스폰
-  if (frameCount % obstacleFrequency === 0) {
+  // 차 스폰 (보스전에는 덜 나옴)
+  var spawnFreq = bossActive ? Math.max(obstacleFrequency * 2, 80) : obstacleFrequency;
+  if (frameCount % spawnFreq === 0) {
     var obs = createVehicle(); scene.add(obs); obstacles.push(obs);
     if (Math.random() < 0.35 && speed > 0.35) {
       var obs2 = createVehicle();
