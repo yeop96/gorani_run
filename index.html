@@ -1389,7 +1389,7 @@ function spawnBoss() {
     bw.style.animation = '';
     // 실제 보스 등장
     bossTruck = createBossTruck();
-    bossTruck.position.set(0, 0, -90);
+    bossTruck.position.set(0, 0, -50);
     scene.add(bossTruck);
     sfxBossHorn();
     // HP 바 표시
@@ -1402,9 +1402,10 @@ function spawnBoss() {
 function updateBoss() {
   if (!bossActive || !bossTruck) return;
 
-  // 보스 전진 (고라니 쪽으로 천천히)
-  if (bossTruck.position.z < -15) {
-    bossTruck.position.z += 0.3;
+  // 보스 전진 (고라니 쪽으로 천천히) — 고라니는 z=3, 보스 정착 위치는 z=-8
+  var bossStopZ = -8;
+  if (bossTruck.position.z < bossStopZ) {
+    bossTruck.position.z += 0.4;
   } else {
     // 보스 행동 패턴
     bossMoveTimer++;
@@ -1434,23 +1435,40 @@ function updateBoss() {
     // 보스가 가끔 경적
     if (bossMoveTimer % 180 === 0) sfxBossHorn();
 
-    // 앞으로 살짝 전진/후진 (위협)
-    bossTruck.position.z = -15 + Math.sin(bossMoveTimer * 0.02) * 3;
+    // 앞으로 살짝 전진/후진 (위협) — 고라니 근처에서 왔다갔다
+    bossTruck.position.z = bossStopZ + Math.sin(bossMoveTimer * 0.02) * 2;
+
+    // 가끔 돌진 패턴! (보스가 고라니쪽으로 빠르게 다가갔다 물러남)
+    if (bossMoveTimer % 300 > 250 && bossMoveTimer % 300 < 280) {
+      bossTruck.position.z += 0.15; // 돌진
+    }
+
+    // 점프 중이면 고라니를 보스 쪽으로 돌진시킴
+    if (isJumping && jumpY > 0.5) {
+      var targetZ = bossTruck.position.z + 2; // 보스 약간 앞
+      if (gorani.position.z > targetZ) {
+        gorani.position.z += (targetZ - gorani.position.z) * 0.08;
+      }
+    } else if (!isJumping && gorani.position.z < 2.5) {
+      // 점프 끝나면 원래 위치로 복귀
+      gorani.position.z += (3 - gorani.position.z) * 0.1;
+    }
 
     // 보스와 충돌 체크 (점프로 위에서 밟으면 데미지!)
-    var bw = bossTruck.userData.width * 0.5;
-    var bl = bossTruck.userData.length * 0.45;
+    var bw = bossTruck.userData.width * 0.5 + 0.8;
+    var bl = bossTruck.userData.length * 0.5 + 1.5;
     var dx = Math.abs(gorani.position.x - bossTruck.position.x);
     var dz = Math.abs(gorani.position.z - bossTruck.position.z);
 
     if (dx < bw && dz < bl) {
-      if (isJumping && jumpY > 1.5 && jumpVelocity < 0) {
+      if (isJumping && jumpY > 1.2 && jumpVelocity < 0) {
         // 점프로 밟기! → 보스에게 데미지
         bossHP--;
         sfxBossHit();
         spawnP(bossTruck.position.x, bossTruck.position.z, 0xff4444, 0xffaa00, 30);
-        // 밟은 후 반동 점프
-        jumpVelocity = 0.22;
+        // 밟은 후 반동 점프 + 원래 위치로 튕겨남
+        jumpVelocity = 0.25;
+        gorani.position.z = 3;
         // 보스 흔들림
         bossTruck.position.y = -0.3;
         setTimeout(function(){ if(bossTruck) bossTruck.position.y = 0; }, 200);
@@ -1503,6 +1521,7 @@ function defeatBoss() {
   bossDefeated++;
   bossActive = false;
   score += 5000 * bossDefeated;
+  gorani.position.z = 3; // 원래 위치로 복귀
 
   // 보스 폭발 연출
   for (var i = 0; i < 8; i++) {
